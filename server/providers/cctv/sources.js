@@ -45,6 +45,14 @@ import {
   TARKTEE_ANCHORS,
   DEFAULT_WARENDORF_SOURCE_FILE,
   WARENDORF_IMAGE_ORIGINS,
+  DEFAULT_JAKARTA_SOURCE_FILE,
+  DEFAULT_JAKARTA_MAX_SOURCES,
+  JAKARTA_CENTER,
+  DEFAULT_WESTJAVA_SOURCE_FILE,
+  DEFAULT_WESTJAVA_MAX_SOURCES,
+  BANDUNG_CENTER,
+  WESTJAVA_ANCHORS,
+  PELINDUNG_BANDUNG_API,
   NSW_CAMERAS_URL,
   NSW_IMAGE_ORIGIN,
   DEFAULT_NSW_MAX_SOURCES,
@@ -68,6 +76,7 @@ import {
 } from './constants.js';
 import {
   toFiniteNumber,
+  normalizeFeedType,
   extractAustinCoords,
   extractAustinCameraId,
   extractAustinName,
@@ -1862,4 +1871,264 @@ export async function loadVegvesenSourcesFromOpenData() {
     );
     return [];
   }
+}
+
+/**
+ * Load Jakarta metropolitan CCTV cameras from the curated catalog file.
+ *
+ * Covers key urban arterial corridors: CMNP (Ir. Wiyoto Wiyono: Pluit, Tanjung
+ * Priok, Cawang), JTD (6 Tol Dalam Kota: Kelapa Gading - Pulo Gebang, Cakung,
+ * Sunter), KKDM (Becakayu: Casablanca, Gembrong, Cipinang), and CTP (Cilincing).
+ *
+ * @returns {Array<object>} Normalized camera source objects.
+ */
+export function loadJakartaSourcesFromOpenData({
+  sourceRoot = process.cwd(),
+} = {}) {
+  const sourceFile =
+    process.env.CCTV_JAKARTA_SOURCES_FILE || DEFAULT_JAKARTA_SOURCE_FILE;
+  const resolved = path.isAbsolute(sourceFile)
+    ? sourceFile
+    : path.resolve(sourceRoot, sourceFile);
+  let rows = [];
+  try {
+    if (!fs.existsSync(resolved)) {
+      console.warn('[CCTV] Jakarta source file missing:', resolved);
+      return [];
+    }
+    const parsed = JSON.parse(fs.readFileSync(resolved, 'utf8'));
+    rows = Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.warn(
+      '[CCTV] Jakarta source file read error:',
+      error?.message || error,
+    );
+    return [];
+  }
+
+  const cameras = [];
+  for (const item of rows) {
+    if (!item || typeof item !== 'object') continue;
+    const cameraId =
+      typeof item.id === 'string' || typeof item.id === 'number'
+        ? String(item.id).trim()
+        : '';
+    if (!cameraId) continue;
+    const lat = typeof item.lat === 'number' ? item.lat : NaN;
+    const lon = typeof item.lon === 'number' ? item.lon : NaN;
+    if (!isPlausibleLatLon(lat, lon)) continue;
+    // Jakarta metropolitan coordinate sanity bounds
+    if (lat < -6.5 || lat > -5.9 || lon < 106.5 || lon > 107.2) continue;
+
+    const streamUrl =
+      typeof item.url === 'string'
+        ? item.url.trim()
+        : typeof item.snapshotUrl === 'string'
+          ? item.snapshotUrl.trim()
+          : '';
+    if (!streamUrl) continue;
+
+    const extractedHeading = toFiniteNumber(item.headingDeg, NaN);
+    const hasHeading = Number.isFinite(extractedHeading);
+    const headingDeg = hasHeading
+      ? ((extractedHeading % 360) + 360) % 360
+      : fallbackHeadingFromId(cameraId);
+    const headingConfidence = hasHeading
+      ? String(item.headingConfidence || '').toLowerCase() === 'low'
+        ? 'low'
+        : 'high'
+      : 'low';
+
+    cameras.push({
+      id: cameraId,
+      name: String(item.name || cameraId).trim(),
+      city: 'Jakarta',
+      cityId: 'jakarta',
+      provider: String(item.provider || 'Jakarta CCTV Network'),
+      lat,
+      lon,
+      headingDeg,
+      headingConfidence,
+      pitchDeg: toFiniteNumber(item.pitchDeg, -18),
+      fovDeg: toFiniteNumber(item.fovDeg, 70),
+      rangeM: toFiniteNumber(item.rangeM, 600),
+      mountHeightM: toFiniteNumber(item.mountHeightM, 28),
+      groundElevationM: toFiniteNumber(item.groundElevationM, 10),
+      feedType: normalizeFeedType(item.feedType || 'hls'),
+      url: streamUrl,
+      snapshotUrl:
+        typeof item.snapshotUrl === 'string'
+          ? item.snapshotUrl.trim()
+          : streamUrl,
+      sourceKind: String(item.sourceKind || 'toll-camera'),
+      license: String(item.license || 'Public Jakarta Traffic Camera Data'),
+      poseSource: hasHeading ? 'curated' : undefined,
+    });
+  }
+
+  const unique = Array.from(
+    new Map(cameras.map((camera) => [camera.id, camera])).values(),
+  );
+  const maxRaw = Number(
+    process.env.CCTV_JAKARTA_MAX_SOURCES || DEFAULT_JAKARTA_MAX_SOURCES,
+  );
+  const maxCount = Number.isFinite(maxRaw)
+    ? Math.max(8, Math.min(500, Math.floor(maxRaw)))
+    : DEFAULT_JAKARTA_MAX_SOURCES;
+  const prioritized = prioritizeSources(unique, maxCount, [JAKARTA_CENTER]);
+  console.log(
+    `[CCTV] Loaded Jakarta camera sources: ${unique.length} (using nearest ${prioritized.length})`,
+  );
+  return prioritized;
+}
+
+/**
+ * Load West Java (Bandung & arterial tollways) CCTV cameras.
+ *
+ * Queries the official City of Bandung Pelindung API (Diskominfo Kota Bandung)
+ * for live municipal traffic feeds, and integrates with the curated West Java
+ * catalog file (Jalan Braga, Cibeureum, Cikutra, Cimanggis-Cibitung, etc.).
+ *
+ * @returns {Promise<Array<object>>} Normalized camera source objects.
+ */
+export async function loadWestJavaSourcesFromOpenData({
+  sourceRoot = process.cwd(),
+} = {}) {
+  const fileCameras = [];
+  const sourceFile =
+    process.env.CCTV_WESTJAVA_SOURCES_FILE || DEFAULT_WESTJAVA_SOURCE_FILE;
+  const resolved = path.isAbsolute(sourceFile)
+    ? sourceFile
+    : path.resolve(sourceRoot, sourceFile);
+
+  try {
+    if (fs.existsSync(resolved)) {
+      const parsed = JSON.parse(fs.readFileSync(resolved, 'utf8'));
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          if (!item || typeof item !== 'object') continue;
+          const id = String(item.id || '').trim();
+          if (!id) continue;
+          const lat = toFiniteNumber(item.lat);
+          const lon = toFiniteNumber(item.lon);
+          if (!isPlausibleLatLon(lat, lon)) continue;
+          const url = String(item.url || item.snapshotUrl || '').trim();
+          if (!url) continue;
+
+          fileCameras.push({
+            id,
+            name: String(item.name || id).trim(),
+            city: String(item.city || 'Bandung'),
+            cityId: String(item.cityId || 'bandung'),
+            provider: String(
+              item.provider || 'Pemerintah Kota Bandung (Pelindung)',
+            ),
+            lat,
+            lon,
+            headingDeg: toFiniteNumber(
+              item.headingDeg,
+              fallbackHeadingFromId(id),
+            ),
+            headingConfidence: String(item.headingConfidence || 'medium'),
+            pitchDeg: toFiniteNumber(item.pitchDeg, -18),
+            fovDeg: toFiniteNumber(item.fovDeg, 72),
+            rangeM: toFiniteNumber(item.rangeM, 480),
+            mountHeightM: toFiniteNumber(item.mountHeightM, 18),
+            groundElevationM: toFiniteNumber(item.groundElevationM, 700),
+            feedType: normalizeFeedType(item.feedType || 'hls'),
+            url,
+            snapshotUrl:
+              typeof item.snapshotUrl === 'string'
+                ? item.snapshotUrl.trim()
+                : url,
+            sourceKind: String(item.sourceKind || 'municipal-webcam'),
+            license: String(
+              item.license ||
+                'Public municipal traffic camera — Diskominfo Kota Bandung',
+            ),
+            poseSource: item.poseSource || 'curated',
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(
+      '[CCTV] West Java file catalog read error:',
+      err?.message || err,
+    );
+  }
+
+  // Probe Pelindung Kota Bandung API for live cameras
+  const liveCameras = [];
+  try {
+    const res = await fetch(PELINDUNG_BANDUNG_API, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (res.ok) {
+      const rows = await res.json();
+      if (Array.isArray(rows)) {
+        for (const row of rows) {
+          if (!row || typeof row !== 'object') continue;
+          const id = `bandung-${row.id || row.cctv_name || ''}`.trim();
+          const lat = parseFloat(row.lat);
+          const lon = parseFloat(row.lng);
+          let streamUrl = String(row.stream_cctv || '').trim();
+          if (!streamUrl || !isPlausibleLatLon(lat, lon)) continue;
+          // Normalize upstream typo extension (.m3u -> .m3u8)
+          if (streamUrl.endsWith('.m3u')) {
+            streamUrl = `${streamUrl}8`;
+          }
+          if (!streamUrl.includes('.m3u8')) continue;
+          // Bounds check for Bandung metro extent
+          if (lat < -7.1 || lat > -6.7 || lon < 107.4 || lon > 107.8) continue;
+
+          liveCameras.push({
+            id,
+            name: String(row.cctv_name || id)
+              .replace(/^CCTV\s+/i, '')
+              .trim(),
+            city: 'Bandung',
+            cityId: 'bandung',
+            provider: `Pemkot Bandung (${row.dinas || 'Pelindung'})`,
+            lat,
+            lon,
+            headingDeg: fallbackHeadingFromId(id),
+            headingConfidence: 'low',
+            pitchDeg: -18,
+            fovDeg: 72,
+            rangeM: 450,
+            mountHeightM: 18,
+            groundElevationM: 700,
+            feedType: 'hls',
+            url: streamUrl,
+            snapshotUrl: streamUrl,
+            sourceKind: 'municipal-webcam',
+            license:
+              'Public municipal traffic camera — Diskominfo Kota Bandung',
+          });
+        }
+      }
+    }
+  } catch {
+    // Graceful offline fallback: file-based cameras will be served
+  }
+
+  // Combine: live cameras first, then curated file cameras (curated entries take precedence)
+  const map = new Map();
+  for (const c of liveCameras) map.set(c.id, c);
+  for (const c of fileCameras) map.set(c.id, c);
+
+  const unique = Array.from(map.values());
+  const maxRaw = Number(
+    process.env.CCTV_WESTJAVA_MAX_SOURCES || DEFAULT_WESTJAVA_MAX_SOURCES,
+  );
+  const maxCount = Number.isFinite(maxRaw)
+    ? Math.max(8, Math.min(500, Math.floor(maxRaw)))
+    : DEFAULT_WESTJAVA_MAX_SOURCES;
+  const prioritized = prioritizeSources(unique, maxCount, WESTJAVA_ANCHORS);
+  console.log(
+    `[CCTV] Loaded West Java camera sources: ${unique.length} (using nearest ${prioritized.length})`,
+  );
+  return prioritized;
 }

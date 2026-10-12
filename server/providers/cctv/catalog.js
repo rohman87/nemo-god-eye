@@ -19,6 +19,8 @@ import {
   loadCalgarySourcesFromOpenData,
   loadDelDOTSourcesFromOpenData,
   loadVegvesenSourcesFromOpenData,
+  loadJakartaSourcesFromOpenData,
+  loadWestJavaSourcesFromOpenData,
 } from './sources.js';
 
 /** Env kill switch: unset or anything but "0" means enabled. */
@@ -97,6 +99,16 @@ const LIVE_PACKS = [
     name: 'vegvesen',
     enabled: () => envEnabled('CCTV_VEGVESEN_ENABLED'),
     load: loadVegvesenSourcesFromOpenData,
+  },
+  {
+    name: 'jakarta',
+    enabled: () => envEnabled('CCTV_JAKARTA_ENABLED'),
+    load: loadJakartaSourcesFromOpenData,
+  },
+  {
+    name: 'westjava',
+    enabled: () => envEnabled('CCTV_WESTJAVA_ENABLED'),
+    load: loadWestJavaSourcesFromOpenData,
   },
 ];
 /**

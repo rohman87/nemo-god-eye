@@ -201,6 +201,23 @@ export const WARENDORF_IMAGE_ORIGINS = Object.freeze([
   'http://webcam.warendorf.de/',
   'https://www.kreis-warendorf.de/',
 ]);
+/** Jakarta (Indonesia) metropolitan CCTV: curated catalog and live toll corridor streams. */
+export const DEFAULT_JAKARTA_SOURCE_FILE = 'config/cctv_sources.jakarta.json';
+export const DEFAULT_JAKARTA_MAX_SOURCES = 250;
+export const JAKARTA_CENTER = { lat: -6.2088, lon: 106.8456 };
+
+/** West Java (Indonesia) CCTV: Pelindung Kota Bandung municipal feeds and arterial tollways. */
+export const DEFAULT_WESTJAVA_SOURCE_FILE = 'config/cctv_sources.westjava.json';
+export const DEFAULT_WESTJAVA_MAX_SOURCES = 450;
+export const BANDUNG_CENTER = { lat: -6.9175, lon: 107.6191 };
+export const WESTJAVA_ANCHORS = [
+  BANDUNG_CENTER,
+  { lat: -6.382, lon: 106.918 },
+  { lat: -6.5971, lon: 106.806 },
+];
+export const PELINDUNG_BANDUNG_API =
+  'https://pelindung.bandung.go.id:8443/api/cek';
+
 /** Live Traffic NSW (Transport for NSW): keyless public camera catalog. */
 export const NSW_CAMERAS_URL =
   'https://data.livetraffic.com/cameras/traffic-cam.json';
