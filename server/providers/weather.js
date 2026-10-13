@@ -423,48 +423,14 @@ export function weatherProxy({
     }
     if (product === 'clouds-himawari') {
       try {
-        if (
-          now() - (attempts.get(product) ?? -Infinity) < 30_000 &&
-          !operations.has('metadata:clouds-himawari')
-        )
-          throw failure('weather_upstream_unavailable');
-        attempts.set(product, now());
-        const defaultIso = await shared(
-          'metadata:clouds-himawari',
-          async (activeSignal) => {
-            try {
-              const res = await fetchImpl(
-                'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetCapabilities',
-                { signal: activeSignal, redirect: 'error' },
-              );
-              if (res.ok) {
-                const text = await readResponseTextCapped(
-                  res,
-                  3 * 1024 * 1024,
-                  activeSignal,
-                );
-                const idx = text.indexOf('Himawari_AHI_Band13_Clean_Infrared');
-                if (idx >= 0) {
-                  const chunk = text.slice(idx, idx + 1000);
-                  const defMatch = chunk.match(/default="([^"]+)"/);
-                  if (defMatch?.[1]) return defMatch[1];
-                }
-              }
-            } catch {
-              // fallback below
-            }
-            const targetMs = now() - 40 * 60_000;
-            const d = new Date(targetMs);
-            d.setUTCMinutes(Math.floor(d.getUTCMinutes() / 10) * 10, 0, 0);
-            return d.toISOString();
-          },
-          signal,
-        );
-        const latestMs = Date.parse(defaultIso);
+        const targetMs = now() - 40 * 60_000;
+        const d = new Date(targetMs);
+        d.setUTCMinutes(Math.floor(d.getUTCMinutes() / 10) * 10, 0, 0);
+        const latestMs = d.getTime();
         const allowedTimes = [];
         for (let i = 144; i >= 0; i--) {
-          const d = new Date(latestMs - i * 10 * 60_000);
-          allowedTimes.push(d.toISOString());
+          const slot = new Date(latestMs - i * 10 * 60_000);
+          allowedTimes.push(slot.toISOString());
         }
         const times = allowedTimes.slice(-13);
         const value = {
