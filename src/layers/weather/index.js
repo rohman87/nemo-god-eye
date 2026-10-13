@@ -448,7 +448,6 @@ export function createWeatherLayer({
       if (
         params.focus === true &&
         enabled &&
-        manifest?.bounds &&
         runNavigation
       ) {
         const b = lightning
@@ -457,7 +456,9 @@ export function createWeatherLayer({
             ? { west: 95, south: -11, east: 141, north: 6 }
             : satellite && product === 'clouds-himawari'
               ? { west: 80, south: -15, east: 155, north: 25 }
-              : manifest.bounds;
+              : product === 'clouds'
+                ? { west: -180, south: -60, east: 180, north: 60 }
+                : manifest?.bounds || { west: -125, south: 24, east: -66, north: 50 };
         runNavigation(() =>
           viewer.camera.flyTo({
             destination: cesium.Rectangle.fromDegrees(
@@ -621,7 +622,7 @@ export function createWeatherLayer({
                 id: value,
                 label,
                 active: product === value,
-                params: { product: value },
+                params: { product: value, focus: true },
                 title:
                   value === 'radar-global'
                     ? 'Indonesia & Global composite Doppler radar from RainViewer & BMKG'
@@ -639,7 +640,7 @@ export function createWeatherLayer({
                 id: value,
                 label,
                 active: product === value,
-                params: { product: value },
+                params: { product: value, focus: true },
                 title:
                   value === 'clouds-himawari'
                     ? 'Himawari-9 10-minute infrared covering Indonesia & Asia-Pacific'
@@ -685,7 +686,7 @@ export function createWeatherLayer({
                 : product === 'clouds-himawari'
                   ? 'View Indonesia & Asia'
                   : 'View coverage',
-            disabled: !manifest || !runNavigation,
+            disabled: !runNavigation,
             params: { focus: true },
           },
         ],

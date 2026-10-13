@@ -141,7 +141,10 @@ export class LayerPanel {
       clock: this.weatherClock,
       container:
         container?.ownerDocument?.getElementById?.('weather-panel-body'),
-      setLayerParams: this.setLayerParams,
+      setLayerParams: (id, params, options) => {
+        this.setLayerParams(id, params, options);
+        this._scheduleRowControlsRefresh();
+      },
     });
     this._mountRecentImagery();
     this._renderToggles();
