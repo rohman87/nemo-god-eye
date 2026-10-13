@@ -174,6 +174,7 @@ export function readShellElements(document = globalThis.document) {
       'cctv-packs-submenu-content',
     ),
     _cctvPacksCountBadge: document.getElementById('cctv-packs-count-badge'),
+    _cctvPacksDefaultBtn: document.getElementById('cctv-packs-default-btn'),
     _cctvPacksAllBtn: document.getElementById('cctv-packs-all-btn'),
     _cctvPacksNoneBtn: document.getElementById('cctv-packs-none-btn'),
     _cctvProviderChips: document.getElementById('cctv-provider-chips'),

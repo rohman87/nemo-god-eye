@@ -536,6 +536,11 @@ export const HOVER_PICK_THROTTLE_MS = 120;
 
 export const HOVER_RELEASE_MS = 1_000;
 
+export const DEFAULT_ENABLED_CCTV_PACKS = Object.freeze([
+  'jakarta',
+  'westjava',
+]);
+
 export const CCTV_PACK_LABELS = Object.freeze({
   jakarta: 'JAKARTA',
   westjava: 'WEST JAVA',

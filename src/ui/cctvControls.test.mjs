@@ -293,12 +293,14 @@ test('provider pack chip clicks forward togglePack parameter', (t) => {
 test('provider packs quick enable all and disable all buttons', (t) => {
   const allBtn = new EventTarget();
   const noneBtn = new EventTarget();
+  const defaultBtn = new EventTarget();
   let calls = [];
   const controls = new CctvControls({
     elements: {
       _cctvPanel: {},
       _cctvPacksAllBtn: allBtn,
       _cctvPacksNoneBtn: noneBtn,
+      _cctvPacksDefaultBtn: defaultBtn,
     },
     cctv: {},
     actions: {
@@ -312,14 +314,18 @@ test('provider packs quick enable all and disable all buttons', (t) => {
   t.after(() => controls.destroy());
 
   controls._cctvState = {
-    packs: [{ id: 'jakarta' }, { id: 'westjava' }],
+    packs: [{ id: 'jakarta' }, { id: 'westjava' }, { id: 'austin' }],
   };
 
   allBtn.dispatchEvent(new Event('click'));
   noneBtn.dispatchEvent(new Event('click'));
+  defaultBtn.dispatchEvent(new Event('click'));
 
   assert.deepEqual(calls[0].params, { disabledPacks: [] });
-  assert.deepEqual(calls[1].params, { disabledPacks: ['jakarta', 'westjava'] });
+  assert.deepEqual(calls[1].params, {
+    disabledPacks: ['jakarta', 'westjava', 'austin'],
+  });
+  assert.deepEqual(calls[2].params, { disabledPacks: ['austin'] });
 });
 
 test('fullscreen prev/next buttons and arrow keys cycle cameras', async (t) => {

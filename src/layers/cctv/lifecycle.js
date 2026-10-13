@@ -7,6 +7,7 @@ import {
   CAMERA_ICON,
   IDLE_CAMERA_COLOR,
   CALIBRATION_RANGE_FLOOR_M,
+  DEFAULT_ENABLED_CCTV_PACKS,
 } from './policy.js';
 
 export function createLifecycle({
@@ -206,11 +207,32 @@ export function createLifecycle({
         layerState._recordById.set(camera.id, record);
       }
 
+      if (!layerState._packsCustomizedByUser && layerState._records.length) {
+        const hasDefaultPacks = layerState._records.some((record) =>
+          DEFAULT_ENABLED_CCTV_PACKS.includes(record.camera.pack),
+        );
+        if (hasDefaultPacks) {
+          const disabled = new Set();
+          for (const record of layerState._records) {
+            const pack = record.camera.pack || 'other';
+            if (!DEFAULT_ENABLED_CCTV_PACKS.includes(pack)) {
+              disabled.add(pack);
+            }
+          }
+          layerState._disabledPacks = disabled;
+        }
+      }
+
       layerState._count = layerState._records.length;
       if (layerState._records.length > 0) {
         // Projection runtime + first frame fetch are deferred to enable() so
         // initializing the catalog stays render-cheap.
-        layerState._activeCameraId = layerState._records[0].camera.id;
+        const firstEnabled = layerState._records.find(
+          (r) => !layerState._disabledPacks?.has(r.camera.pack),
+        );
+        layerState._activeCameraId = firstEnabled
+          ? firstEnabled.camera.id
+          : layerState._records[0].camera.id;
       }
 
       // Task 5: if the prior batch lost init's bounded race, apply it post-hoc
@@ -361,8 +383,34 @@ export function createLifecycle({
           );
         return Boolean(coverage && layerState._recordById.has(coverage[1]));
       });
-      if (!layerState._activeCameraId && layerState._records.length) {
-        layerState._activeCameraId = layerState._records[0].camera.id;
+      if (!layerState._packsCustomizedByUser && layerState._records.length) {
+        const hasDefaultPacks = layerState._records.some((record) =>
+          DEFAULT_ENABLED_CCTV_PACKS.includes(record.camera.pack),
+        );
+        if (hasDefaultPacks) {
+          const disabled = new Set();
+          for (const record of layerState._records) {
+            const pack = record.camera.pack || 'other';
+            if (!DEFAULT_ENABLED_CCTV_PACKS.includes(pack)) {
+              disabled.add(pack);
+            }
+          }
+          layerState._disabledPacks = disabled;
+        }
+      }
+      const currentActive = layerState._activeCameraId
+        ? layerState._recordById.get(layerState._activeCameraId)
+        : null;
+      if (
+        !currentActive ||
+        layerState._disabledPacks?.has(currentActive.camera.pack)
+      ) {
+        const firstEnabled = layerState._records.find(
+          (r) => !layerState._disabledPacks?.has(r.camera.pack),
+        );
+        layerState._activeCameraId = firstEnabled
+          ? firstEnabled.camera.id
+          : layerState._records[0]?.camera.id || null;
         layerState._autoHopSuspended = false;
       }
       const activeRecord = parts.selection.getActiveRecord();

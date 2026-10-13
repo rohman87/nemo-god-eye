@@ -189,6 +189,14 @@ export function _initCctvPanel() {
     if (arrow) arrow.textContent = nextState ? '▾' : '▸';
   });
 
+  this.listen(this._cctvPacksDefaultBtn, 'click', () => {
+    const packs = this._cctvState?.packs || [];
+    const disabled = packs
+      .map((p) => p.id)
+      .filter((id) => id !== 'jakarta' && id !== 'westjava');
+    this.actions.setParams?.({ disabledPacks: disabled }, { origin: 'user' });
+  });
+
   this.listen(this._cctvPacksAllBtn, 'click', () => {
     this.actions.setParams?.({ disabledPacks: [] }, { origin: 'user' });
   });

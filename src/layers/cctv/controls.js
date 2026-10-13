@@ -166,6 +166,7 @@ export function createControls({ state: layerState, services, parts, source }) {
         );
       }
       if (Array.isArray(params.disabledPacks)) {
+        layerState._packsCustomizedByUser = true;
         layerState._disabledPacks = new Set(
           params.disabledPacks.map((p) => String(p).toLowerCase()),
         );
@@ -177,6 +178,7 @@ export function createControls({ state: layerState, services, parts, source }) {
         }
       }
       if (typeof params.togglePack === 'string') {
+        layerState._packsCustomizedByUser = true;
         const pack = params.togglePack.toLowerCase();
         if (layerState._disabledPacks.has(pack)) {
           layerState._disabledPacks.delete(pack);
