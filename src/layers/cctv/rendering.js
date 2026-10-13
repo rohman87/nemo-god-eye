@@ -146,6 +146,10 @@ export function createRendering({
     for (const record of layerState._records) {
       const bb = record.billboard;
       if (!bb) continue;
+      if (layerState._disabledPacks?.has(record.camera.pack)) {
+        if (bb.show !== false) bb.show = false;
+        continue;
+      }
       const visible = occluder.isPointVisible(bb.position);
       if (bb.show !== visible) bb.show = visible;
     }
@@ -206,6 +210,15 @@ export function createRendering({
       );
     }
     for (const record of layerState._records) {
+      if (layerState._disabledPacks?.has(record.camera.pack)) {
+        if (record.billboard) record.billboard.show = false;
+        for (const entity of record.coverageEntities || []) entity.show = false;
+        if (record.viewshedPrimitive)
+          parts.geometry.destroyViewshedVolume(record);
+        if (record.projection)
+          parts.projection.setPlaneVisible(record.projection, false);
+        continue;
+      }
       const isActive = record.camera.id === activeId;
       if (record.billboard) {
         record.billboard.color = isActive

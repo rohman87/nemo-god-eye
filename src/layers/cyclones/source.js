@@ -44,19 +44,28 @@ const position = (value) => {
 function officialLink(value, outlook = false) {
   if (value === null) return null;
   const url = new URL(text(value, 256));
+  const allowedOrigins = [
+    'https://www.nhc.noaa.gov',
+    'https://www.metoc.navy.mil',
+    'https://s3.amazonaws.com',
+    'http://www.bom.gov.au',
+    'https://www.bom.gov.au',
+    'https://tcwc.bmkg.go.id',
+  ];
   if (
-    url.origin !== 'https://www.nhc.noaa.gov' ||
+    !allowedOrigins.includes(url.origin) ||
     url.username ||
     url.password ||
     url.hash
   )
     throw malformed();
   if (
-    outlook
+    url.origin === 'https://www.nhc.noaa.gov' &&
+    (outlook
       ? !/^\/gtwo\.php\?basin=(?:atlc|epac|cpac)&fdays=7$/.test(
           url.pathname + url.search,
         )
-      : url.search || !/^\/text\/[A-Z0-9]+\.shtml$/.test(url.pathname)
+      : url.search || !/^\/text\/[A-Z0-9]+\.shtml$/.test(url.pathname))
   )
     throw malformed();
   return url.href;
@@ -119,7 +128,7 @@ export function validateCycloneSnapshot(value) {
     budget = { coordinates: 0, points: 0 };
   const storms = value.storms.map((raw) => {
     if (
-      !/^(?:al|ep|cp)\d{6}$/.test(raw?.id) ||
+      !/^(?:al|ep|cp|wp|io|sh)\d{6}$/.test(raw?.id) ||
       seen.has(raw.id) ||
       !['current', 'pending', 'unavailable'].includes(raw.geometryStatus)
     )

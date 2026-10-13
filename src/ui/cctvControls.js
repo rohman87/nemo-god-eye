@@ -109,9 +109,83 @@ export class CctvControls {
   _initCctvPanel(...args) {
     return _initCctvPanel.call(this, ...args);
   }
+  isViewerExpanded() {
+    return (
+      this._cctvFrameWrap?.classList.contains('cctv-frame-wrap-expanded') ===
+      true
+    );
+  }
+  setViewerExpanded(expanded) {
+    const wrap = this._cctvFrameWrap;
+    if (!wrap) return;
+    const on = expanded === true;
+    if (on === this.isViewerExpanded()) return;
+    if (on) {
+      this._wrapHome = { parent: wrap.parentNode, next: wrap.nextSibling };
+      this._expandReturnFocus =
+        typeof document !== 'undefined' ? document.activeElement : null;
+      if (typeof document !== 'undefined' && document.body) {
+        document.body.appendChild(wrap);
+      }
+      wrap.classList.add('cctv-frame-wrap-expanded');
+      wrap.setAttribute('role', 'dialog');
+      wrap.setAttribute('aria-modal', 'true');
+      wrap.setAttribute('aria-label', 'CCTV Fullscreen View');
+      wrap.tabIndex = -1;
+      wrap.focus?.({ preventScroll: true });
+      if (this._cctvFullscreenCloseBtn)
+        this._cctvFullscreenCloseBtn.hidden = false;
+      if (this._cctvFullscreenBtn) {
+        this._cctvFullscreenBtn.textContent = '✕ CLOSE';
+        this._cctvFullscreenBtn.title = 'Exit fullscreen view (Esc)';
+      }
+      try {
+        if (
+          typeof document !== 'undefined' &&
+          !document.fullscreenElement &&
+          wrap.requestFullscreen
+        ) {
+          wrap.requestFullscreen().catch(() => {});
+        }
+      } catch {}
+    } else {
+      wrap.classList.remove('cctv-frame-wrap-expanded');
+      wrap.removeAttribute('role');
+      wrap.removeAttribute('aria-modal');
+      wrap.removeAttribute('aria-label');
+      wrap.removeAttribute('tabindex');
+      if (this._wrapHome?.parent) {
+        this._wrapHome.parent.insertBefore(wrap, this._wrapHome.next);
+      }
+      this._wrapHome = null;
+      if (this._cctvFullscreenCloseBtn)
+        this._cctvFullscreenCloseBtn.hidden = true;
+      if (this._cctvFullscreenBtn) {
+        this._cctvFullscreenBtn.textContent = '⤢ FULLSCREEN';
+        this._cctvFullscreenBtn.title = 'Toggle Fullscreen view (Esc)';
+      }
+      try {
+        if (
+          typeof document !== 'undefined' &&
+          document.fullscreenElement &&
+          document.exitFullscreen
+        ) {
+          document.exitFullscreen().catch(() => {});
+        }
+      } catch {}
+      const target = this._expandReturnFocus;
+      this._expandReturnFocus = null;
+      if (target?.isConnected && typeof target.focus === 'function') {
+        target.focus({ preventScroll: true });
+      }
+    }
+  }
   destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
+    if (this.isViewerExpanded()) {
+      this.setViewerExpanded(false);
+    }
     this._cctvVideoSurface?.stop();
     this._videoVisibilityObserver?.disconnect();
     this._actionGeneration++;

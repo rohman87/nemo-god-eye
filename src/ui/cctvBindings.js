@@ -23,7 +23,7 @@ export function _initCctvPanel() {
     );
   });
 
-  this.listen(this._cctvPrevBtn, 'click', async () => {
+  const handleCycleCamera = async (delta) => {
     const generation = ++this._actionGeneration;
     const activeId = this._cctvState?.activeCameraId;
     if (!(await this.actions.toggleEnabled(true))) return;
@@ -35,27 +35,17 @@ export function _initCctvPanel() {
     )
       return;
     this.actions.runExplicitFocus(
-      () => this.cctv.cycleCamera(-1),
+      () => this.cctv.cycleCamera(delta),
       (cameraId) => this.cctv.focusCamera(cameraId, 1.4),
     );
-  });
+  };
 
-  this.listen(this._cctvNextBtn, 'click', async () => {
-    const generation = ++this._actionGeneration;
-    const activeId = this._cctvState?.activeCameraId;
-    if (!(await this.actions.toggleEnabled(true))) return;
-    if (
-      this.destroyed ||
-      generation !== this._actionGeneration ||
-      !this.actions.isEnabled() ||
-      (activeId && activeId !== this._cctvState?.activeCameraId)
-    )
-      return;
-    this.actions.runExplicitFocus(
-      () => this.cctv.cycleCamera(1),
-      (cameraId) => this.cctv.focusCamera(cameraId, 1.4),
-    );
-  });
+  this.listen(this._cctvPrevBtn, 'click', () => handleCycleCamera(-1));
+  this.listen(this._cctvNextBtn, 'click', () => handleCycleCamera(1));
+  this.listen(this._cctvFsPrevBtn, 'click', () => handleCycleCamera(-1));
+  this.listen(this._cctvFsNextBtn, 'click', () => handleCycleCamera(1));
+  this.listen(this._cctvFsSidePrev, 'click', () => handleCycleCamera(-1));
+  this.listen(this._cctvFsSideNext, 'click', () => handleCycleCamera(1));
 
   this.listen(this._cctvSelect, 'change', async () => {
     const generation = ++this._actionGeneration;
@@ -148,6 +138,75 @@ export function _initCctvPanel() {
 
   this.listen(this._cctvCalibResetBtn, 'click', () => {
     this._resetCctvCalibration();
+  });
+
+  // Fullscreen view toggling
+  this.listen(this._cctvFullscreenBtn, 'click', () => {
+    this.setViewerExpanded(!this.isViewerExpanded());
+  });
+
+  this.listen(this._cctvFullscreenCloseBtn, 'click', () => {
+    this.setViewerExpanded(false);
+  });
+
+  if (typeof document !== 'undefined') {
+    this.listen(document, 'keydown', (event) => {
+      if (!this.isViewerExpanded()) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        this.setViewerExpanded(false);
+      } else if (event.key === 'ArrowLeft' || event.key === '[') {
+        event.preventDefault();
+        event.stopPropagation();
+        handleCycleCamera(-1);
+      } else if (event.key === 'ArrowRight' || event.key === ']') {
+        event.preventDefault();
+        event.stopPropagation();
+        handleCycleCamera(1);
+      }
+    });
+
+    this.listen(document, 'fullscreenchange', () => {
+      if (!document.fullscreenElement && this.isViewerExpanded()) {
+        this.setViewerExpanded(false);
+      }
+    });
+  }
+
+  // CCTV Provider Packs submenu and chip toggles
+  this.listen(this._cctvPacksSubmenuBtn, 'click', () => {
+    const isExpanded =
+      this._cctvPacksSubmenuBtn?.getAttribute('aria-expanded') === 'true';
+    const nextState = !isExpanded;
+    this._cctvPacksSubmenuBtn?.setAttribute('aria-expanded', String(nextState));
+    if (this._cctvPacksSubmenuContent) {
+      this._cctvPacksSubmenuContent.hidden = !nextState;
+    }
+    const arrow = this._cctvPacksSubmenuBtn?.querySelector(
+      '.cctv-submenu-arrow',
+    );
+    if (arrow) arrow.textContent = nextState ? '▾' : '▸';
+  });
+
+  this.listen(this._cctvPacksAllBtn, 'click', () => {
+    this.actions.setParams?.({ disabledPacks: [] }, { origin: 'user' });
+  });
+
+  this.listen(this._cctvPacksNoneBtn, 'click', () => {
+    const packs = this._cctvState?.packs || [];
+    this.actions.setParams?.(
+      { disabledPacks: packs.map((p) => p.id) },
+      { origin: 'user' },
+    );
+  });
+
+  this.listen(this._cctvProviderChips, 'click', (event) => {
+    const button = event.target?.closest?.('.data-toggle-chip');
+    if (!button || button.disabled) return;
+    const packId = button.dataset.chipId;
+    if (!packId) return;
+    this.actions.setParams?.({ togglePack: packId }, { origin: 'user' });
   });
 
   this._renderCctvState(null);

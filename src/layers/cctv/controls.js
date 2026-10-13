@@ -165,6 +165,31 @@ export function createControls({ state: layerState, services, parts, source }) {
           Number(params.focusDurationSec) || 1.8,
         );
       }
+      if (Array.isArray(params.disabledPacks)) {
+        layerState._disabledPacks = new Set(
+          params.disabledPacks.map((p) => String(p).toLowerCase()),
+        );
+        parts.rendering.refreshCoverageStyles();
+        parts.rendering.refreshHorizonCulling();
+        const active = parts.selection.getActiveRecord();
+        if (active && layerState._disabledPacks.has(active.camera.pack)) {
+          parts.selection.deactivateActiveCamera();
+        }
+      }
+      if (typeof params.togglePack === 'string') {
+        const pack = params.togglePack.toLowerCase();
+        if (layerState._disabledPacks.has(pack)) {
+          layerState._disabledPacks.delete(pack);
+        } else {
+          layerState._disabledPacks.add(pack);
+        }
+        parts.rendering.refreshCoverageStyles();
+        parts.rendering.refreshHorizonCulling();
+        const active = parts.selection.getActiveRecord();
+        if (active && layerState._disabledPacks.has(active.camera.pack)) {
+          parts.selection.deactivateActiveCamera();
+        }
+      }
       parts.rendering.refreshCoverageStyles();
       parts.presentation.notifyListeners();
     },
@@ -184,6 +209,7 @@ export function createControls({ state: layerState, services, parts, source }) {
         autoHop: layerState._autoHop,
         autoHopSec: layerState._autoHopSec,
         selectedCameraId: active?.camera.id || null,
+        disabledPacks: Array.from(layerState._disabledPacks || []),
         calibration: active?.camera
           ? {
               cameraId: active.camera.id,
@@ -321,14 +347,20 @@ export function createControls({ state: layerState, services, parts, source }) {
      * @returns {string|null} The newly active camera ID, or null if catalog is empty.
      */
     cycleCamera(step = 1, options = {}) {
-      if (!layerState._records.length) return null;
-      const current = parts.selection.getActiveRecord();
-      const nextIdx = parts.navigation.cctvCycleIndex(
-        layerState._records.findIndex((record) => record === current),
-        step,
-        layerState._records.length,
+      const activeRecords = layerState._records.filter(
+        (record) => !layerState._disabledPacks?.has(record.camera.pack),
       );
-      const nextId = layerState._records[nextIdx].camera.id;
+      if (!activeRecords.length) return null;
+      const current = parts.selection.getActiveRecord();
+      const currentIdx = activeRecords.findIndex(
+        (record) => record === current,
+      );
+      const nextIdx = parts.navigation.cctvCycleIndex(
+        currentIdx,
+        step,
+        activeRecords.length,
+      );
+      const nextId = activeRecords[nextIdx].camera.id;
       parts.selection.setActiveCamera(nextId);
       if (options.focus) {
         parts.navigation.focusCamera(nextId, options.durationSec || 1.8);

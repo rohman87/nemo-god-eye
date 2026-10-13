@@ -57,7 +57,7 @@ function localProviderPlugins({ realtime } = {}) {
     googlePlacesContextProxy(),
     windProxy(),
     weatherProxy(),
-    cycloneProxy(),
+    cycloneProxy({ enableJtwc: true }),
     mapillaryProxy(),
     firePerimetersProxy(),
     keySetupEndpoint(),

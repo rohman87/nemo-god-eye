@@ -21,8 +21,20 @@ export function createCatalog({ state: layerState, services, parts, source }) {
         seed.offsetNorthM || 0,
         seed.offsetEastM || 0,
       );
+      const seedPack = String(
+        seed.pack ||
+          (seed.cityId === 'bandung'
+            ? 'westjava'
+            : seed.cityId === 'sf'
+              ? 'caltrans'
+              : seed.cityId === 'london'
+                ? 'tfl'
+                : seed.cityId) ||
+          'seed',
+      ).toLowerCase();
       const camera = {
         id: seed.id,
+        pack: seedPack,
         name: seed.label,
         cityId: seed.cityId,
         city: city.name,
@@ -170,8 +182,22 @@ export function createCatalog({ state: layerState, services, parts, source }) {
       const poseSource =
         source.poseSource === 'curated' ? 'curated' : seed?.poseSource || null;
 
+      const rawPack = source.pack || seed?.pack || '';
+      const pack = String(
+        rawPack ||
+          (cityId === 'bandung'
+            ? 'westjava'
+            : cityId === 'sf'
+              ? 'caltrans'
+              : cityId === 'london'
+                ? 'tfl'
+                : cityId) ||
+          'other',
+      ).toLowerCase();
+
       const camera = {
         id,
+        pack,
         name: String(source.name || seed?.name || id),
         cityId,
         city: String(source.city || city?.name || seed?.city || 'Global'),

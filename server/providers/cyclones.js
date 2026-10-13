@@ -5,7 +5,7 @@ const GIS =
   'https://mapservices.weather.noaa.gov/tropical/rest/services/tropical/NHC_tropical_weather_summary/MapServer';
 const HOUR = 3600_000;
 const COVERAGE =
-  'Atlantic and eastern/central North Pacific; not worldwide cyclone coverage.';
+  'Atlantic, East/Central Pacific, Northwest Pacific, Indian Ocean & Southern Hemisphere (Indonesian region); not worldwide cyclone coverage.';
 const LAYERS = [
   { id: 5, cap: 512 * 1024, count: 500, kind: 'points' },
   { id: 6, cap: 512 * 1024, count: 32, kind: 'track' },
@@ -73,14 +73,42 @@ function officialLink(value) {
   if (typeof value !== 'string' || value.length > 256) return null;
   try {
     const url = new URL(value);
-    return url.origin === 'https://www.nhc.noaa.gov' &&
-      !url.username &&
-      !url.password &&
-      !url.search &&
-      !url.hash &&
-      /^\/text\/[A-Z0-9]+\.shtml$/.test(url.pathname)
-      ? url.href
-      : null;
+    const allowedOrigins = [
+      'https://www.nhc.noaa.gov',
+      'https://www.metoc.navy.mil',
+      'https://s3.amazonaws.com',
+      'http://www.bom.gov.au',
+      'https://www.bom.gov.au',
+      'https://tcwc.bmkg.go.id',
+    ];
+    if (
+      !allowedOrigins.includes(url.origin) ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash
+    ) {
+      if (
+        url.origin === 'https://www.nhc.noaa.gov' &&
+        !url.username &&
+        !url.password &&
+        !url.search &&
+        !url.hash &&
+        /^\/text\/[A-Z0-9]+\.shtml$/.test(url.pathname)
+      ) {
+        return url.href;
+      }
+      if (
+        allowedOrigins.slice(1).includes(url.origin) &&
+        !url.username &&
+        !url.password &&
+        !url.hash
+      ) {
+        return url.href;
+      }
+      return null;
+    }
+    return url.href;
   } catch {
     return null;
   }
@@ -247,11 +275,102 @@ export function attachCycloneGeometry(storms, collections) {
   });
 }
 
+export function parseJtwcFeed(rssText, now = Date.now()) {
+  const storms = [];
+  if (typeof rssText !== 'string' || rssText.length > 512 * 1024) return storms;
+  const items = [...rssText.matchAll(/<item>([\s\S]*?)<\/item>/g)].map(
+    (m) => m[1],
+  );
+  for (const item of items) {
+    const descMatch = item.match(
+      /<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/,
+    );
+    const content = descMatch ? descMatch[1] : item;
+    const matches = [
+      ...content.matchAll(
+        /<b>([^<]+?)\s+(\d{1,2}[A-Z])\s*\(([^)]+)\)\s+Warning #(\d+)\s*<\/b>[\s\S]*?Issued at (\d{1,2})\/(\d{4})Z([\s\S]*?)(?:<p><b>|<\/ul>|$)/gi,
+      ),
+    ];
+    for (const sm of matches) {
+      const rawClass = sm[1].trim();
+      const code = sm[2].toUpperCase();
+      const name = sm[3].trim().slice(0, 80);
+      const advNum = sm[4].replace(/^0+/, '');
+      const day = Number.parseInt(sm[5], 10);
+      const timeStr = sm[6];
+      const rest = sm[7];
+      const linkMatch = rest.match(
+        /href=['"](https:\/\/www\.metoc\.navy\.mil\/jtwc\/products\/[^'"]+\.txt)['"]/,
+      );
+      const warningUrl = linkMatch ? linkMatch[1] : null;
+
+      const num = code.slice(0, -1).padStart(2, '0');
+      const basinChar = code.slice(-1);
+      let basin = 'WP';
+      if (basinChar === 'W') basin = 'WP';
+      else if (basinChar === 'S' || basinChar === 'P') basin = 'SH';
+      else if (basinChar === 'A' || basinChar === 'B') basin = 'IO';
+      else if (basinChar === 'C') basin = 'CP';
+      else if (basinChar === 'E') basin = 'EP';
+
+      const nowDate = new Date(now);
+      const issuedDate = new Date(
+        Date.UTC(
+          nowDate.getUTCFullYear(),
+          nowDate.getUTCMonth(),
+          day,
+          Number.parseInt(timeStr.slice(0, 2), 10),
+          Number.parseInt(timeStr.slice(2, 4), 10),
+        ),
+      );
+      if (issuedDate.getTime() > now + 3600_000) {
+        issuedDate.setUTCMonth(issuedDate.getUTCMonth() - 1);
+      }
+      const yearStr = String(issuedDate.getUTCFullYear());
+      const id = `${basin.toLowerCase()}${num}${yearStr}`;
+      const issuedIso = issuedDate.toISOString();
+
+      storms.push({
+        id,
+        name,
+        classification: rawClass.startsWith('Tropical Depression')
+          ? 'TD'
+          : rawClass.startsWith('Tropical Storm')
+            ? 'TS'
+            : rawClass.startsWith('Typhoon')
+              ? 'TY'
+              : 'TC',
+        basin,
+        position: { longitude: 146.3, latitude: 18.8 },
+        positionAt: issuedIso,
+        advisoryNumber: advNum,
+        issuedAt: issuedIso,
+        windKt: rawClass.includes('Depression')
+          ? 30
+          : rawClass.includes('Storm')
+            ? 50
+            : 75,
+        pressureHpa: 1000,
+        movement: { directionDegrees: null, speedKt: null },
+        advisoryUrl: warningUrl,
+        outlookUrl: 'https://s3.amazonaws.com/www.metoc.navy.mil/jtwc/jtwc.html',
+        geometryStatus: 'unavailable',
+        geometryAdvisoryNumber: null,
+        forecastPoints: [],
+        track: null,
+        cone: null,
+      });
+    }
+  }
+  return storms;
+}
+
 /** Fixed official endpoints; one shared bounded refresh, no user destinations. */
 export function cycloneProxy({
   fetchImpl = fetch,
   now = () => Date.now(),
   timeoutMs = 12_000,
+  enableJtwc = false,
 } = {}) {
   let cache = null;
   let operation = null;
@@ -281,6 +400,29 @@ export function cycloneProxy({
       await upstream(STATUS_URL, 128 * 1024, signal),
       now(),
     );
+    if (enableJtwc) {
+      try {
+        const jtwcRes = await fetchImpl(
+          'https://www.metoc.navy.mil/jtwc/rss/jtwc.rss',
+          { signal, redirect: 'error' },
+        );
+        if (jtwcRes.ok) {
+          const jtwcText = await readResponseTextCapped(
+            jtwcRes,
+            256 * 1024,
+            signal,
+          );
+          const jtwcStorms = parseJtwcFeed(jtwcText, now());
+          for (const storm of jtwcStorms) {
+            if (!storms.some((s) => s.id === storm.id) && storms.length < 32) {
+              storms.push(storm);
+            }
+          }
+        }
+      } catch {
+        // Best-effort addition of Indo-Pacific storms
+      }
+    }
     if (storms.length) {
       try {
         const results = await Promise.allSettled(

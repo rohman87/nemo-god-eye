@@ -20,6 +20,7 @@ export function createNavigation({
 
     let best = null;
     for (const record of layerState._records) {
+      if (layerState._disabledPacks?.has(record.camera.pack)) continue;
       const distKm = parts.model.haversineKm(
         lat,
         lon,

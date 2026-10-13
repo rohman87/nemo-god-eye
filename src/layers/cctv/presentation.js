@@ -1,5 +1,10 @@
 import { CCTV_AMBIENT_CARD_MAX } from '../../data/cctvLod.js';
-import { ACTIVE_FRAME_REFRESH_MS, IDLE_FRAME_REFRESH_MS } from './policy.js';
+import {
+  ACTIVE_FRAME_REFRESH_MS,
+  IDLE_FRAME_REFRESH_MS,
+  CCTV_PACK_LABELS,
+  CCTV_PACK_COLORS,
+} from './policy.js';
 import { headingHudToken, isHeadingEstimated } from './headingConfidence.js';
 
 export function createPresentation({
@@ -73,6 +78,7 @@ export function createPresentation({
       : IDLE_FRAME_REFRESH_MS;
     return {
       id: camera.id,
+      pack: camera.pack || camera.cityId || 'other',
       name: camera.name,
       city: camera.city,
       provider: camera.provider,
@@ -176,9 +182,31 @@ export function createPresentation({
       },
       activeCameraId: activeId,
       activeCamera: active ? getPublicCameraState(active, activeId) : null,
-      cameras: layerState._records.map((record) =>
+      cameras: layerState._records
+        .filter((record) => !layerState._disabledPacks?.has(record.camera.pack))
+        .map((record) => getPublicCameraState(record, activeId)),
+      allCameras: layerState._records.map((record) =>
         getPublicCameraState(record, activeId),
       ),
+      packs: (() => {
+        const packCounts = new Map();
+        for (const record of layerState._records) {
+          const pack = record.camera.pack || 'other';
+          packCounts.set(pack, (packCounts.get(pack) || 0) + 1);
+        }
+        const list = Array.from(packCounts.entries()).map(
+          ([packId, count]) => ({
+            id: packId,
+            label: CCTV_PACK_LABELS[packId] || packId.toUpperCase(),
+            color: CCTV_PACK_COLORS[packId] || '#00d4ff',
+            active: !layerState._disabledPacks?.has(packId),
+            count,
+          }),
+        );
+        list.sort((a, b) => a.label.localeCompare(b.label));
+        return list;
+      })(),
+      disabledPacks: Array.from(layerState._disabledPacks || []),
       summary: buildSummaryText(),
     };
     return payload;

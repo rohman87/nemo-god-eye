@@ -10,7 +10,7 @@ const PRODUCTS = Object.freeze({
     style: 'lightning_density',
     title: 'Lightning density · 15 min',
     coverage:
-      'Pacific and Americas: 110°E across the dateline to 0°, 25°S–80°N; not global coverage.',
+      'Indonesia, Pacific and Americas (not global: 95°E across the dateline to 0°, 25°S–80°N).',
     description:
       'Observed 15-minute lightning strike density on an approximately 8 km grid, scaled as strikes/km²/min ×10³. Ground-network density, not individual GLM flashes.',
     attribution: 'NOAA/NWS nowCOAST; derived from Vaisala NLDN/GLD360',
@@ -26,6 +26,18 @@ const PRODUCTS = Object.freeze({
       'Contiguous United States; gaps do not establish absence of precipitation.',
     description:
       'Observed MRMS radar base reflectivity (dBZ), approximately 1 km and 4-minute updates; not a rainfall forecast.',
+    image: Object.freeze({ width: 4096, height: 2048 }),
+  }),
+  'radar-global': Object.freeze({
+    title: 'Rain radar · Indonesia & Global',
+    coverage:
+      'Indonesia & Global: BMKG, ASEAN & worldwide Doppler radar composite.',
+    description:
+      'Composite Doppler radar reflectivity (dBZ) from RainViewer including BMKG Indonesian radar network; 10-minute cadence.',
+    source: 'RainViewer / BMKG',
+    attribution: 'RainViewer · BMKG & global meteorological networks',
+    metadataTtlMs: 120_000,
+    tilingScheme: 'web-mercator',
     image: Object.freeze({ width: 4096, height: 2048 }),
   }),
   clouds: Object.freeze({
@@ -48,6 +60,20 @@ const PRODUCTS = Object.freeze({
       'GOES East/West regional North American coverage; not a global image.',
     description:
       'GOES-19/18 longwave infrared Band 14 cloud and surface temperature patterns, approximately 2 km and 5-minute updates. Not a cloud-only mask.',
+    image: Object.freeze({ width: 4096, height: 2048 }),
+  }),
+  'clouds-himawari': Object.freeze({
+    service: 'nasa_gibs',
+    layer: 'Himawari_AHI_Band13_Clean_Infrared',
+    title: 'Himawari-9 satellite infrared · Indonesia & Asia-Pacific',
+    coverage:
+      'Indonesia, East Asia & Western Pacific: 80°E–160°W, 60°S–60°N.',
+    description:
+      'Himawari-9 AHI Band 13 clean longwave infrared cloud patterns, approximately 2 km and 10-minute updates.',
+    source: 'JMA Himawari-9 / NASA GIBS',
+    attribution: 'JMA Himawari-9 · NASA GIBS',
+    metadataTtlMs: 300_000,
+    tilingScheme: 'geographic',
     image: Object.freeze({ width: 4096, height: 2048 }),
   }),
 });
@@ -341,6 +367,120 @@ export function weatherProxy({
     const spec = PRODUCTS[product];
     if (old && now() - old.fetchedAt < (spec.metadataTtlMs ?? 120_000))
       return { ...old, stale: false };
+    if (product === 'radar-global') {
+      try {
+        if (
+          now() - (attempts.get(product) ?? -Infinity) < 30_000 &&
+          !operations.has('metadata:radar-global')
+        )
+          throw failure('weather_upstream_unavailable');
+        attempts.set(product, now());
+        const data = await shared(
+          'metadata:radar-global',
+          async (activeSignal) => {
+            const res = await fetchImpl(
+              'https://api.rainviewer.com/public/weather-maps.json',
+              { signal: activeSignal, redirect: 'error' },
+            );
+            if (!res.ok) throw failure('weather_upstream_unavailable');
+            return JSON.parse(
+              await readResponseTextCapped(res, 256 * 1024, activeSignal),
+            );
+          },
+          signal,
+        );
+        const past = Array.isArray(data?.radar?.past) ? data.radar.past : [];
+        if (!past.length) throw failure('weather_observations_expired');
+        const timeMap = new Map();
+        const times = [];
+        for (const item of past) {
+          if (typeof item.time === 'number' && typeof item.path === 'string') {
+            const t = new Date(item.time * 1000).toISOString();
+            times.push(t);
+            timeMap.set(t, item.path);
+          }
+        }
+        times.sort();
+        const recent = times.slice(-13);
+        const value = {
+          bounds: { west: -180, south: -85, east: 180, north: 85 },
+          times: recent,
+          allowedTimes: times,
+          timeMap,
+          host: data.host || 'https://tilecache.rainviewer.com',
+          fetchedAt: now(),
+        };
+        metadata.set(product, value);
+        return { ...value, stale: false };
+      } catch (error) {
+        if (signal.aborted) attempts.delete(product);
+        signal.throwIfAborted();
+        if (error.status === 429) throw error;
+        if (old && now() - old.fetchedAt <= HOUR) return { ...old, stale: true };
+        throw failure('weather_metadata_unavailable');
+      }
+    }
+    if (product === 'clouds-himawari') {
+      try {
+        if (
+          now() - (attempts.get(product) ?? -Infinity) < 30_000 &&
+          !operations.has('metadata:clouds-himawari')
+        )
+          throw failure('weather_upstream_unavailable');
+        attempts.set(product, now());
+        const defaultIso = await shared(
+          'metadata:clouds-himawari',
+          async (activeSignal) => {
+            try {
+              const res = await fetchImpl(
+                'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetCapabilities',
+                { signal: activeSignal, redirect: 'error' },
+              );
+              if (res.ok) {
+                const text = await readResponseTextCapped(
+                  res,
+                  3 * 1024 * 1024,
+                  activeSignal,
+                );
+                const idx = text.indexOf('Himawari_AHI_Band13_Clean_Infrared');
+                if (idx >= 0) {
+                  const chunk = text.slice(idx, idx + 1000);
+                  const defMatch = chunk.match(/default="([^"]+)"/);
+                  if (defMatch?.[1]) return defMatch[1];
+                }
+              }
+            } catch {
+              // fallback below
+            }
+            const targetMs = now() - 40 * 60_000;
+            const d = new Date(targetMs);
+            d.setUTCMinutes(Math.floor(d.getUTCMinutes() / 10) * 10, 0, 0);
+            return d.toISOString();
+          },
+          signal,
+        );
+        const latestMs = Date.parse(defaultIso);
+        const times = [];
+        for (let i = 12; i >= 0; i--) {
+          const d = new Date(latestMs - i * 10 * 60_000);
+          times.push(d.toISOString());
+        }
+        const value = {
+          bounds: { west: 80, south: -60, east: 180, north: 60 },
+          times,
+          allowedTimes: times,
+          fetchedAt: now(),
+        };
+        metadata.set(product, value);
+        return { ...value, stale: false };
+      } catch (error) {
+        if (signal.aborted) attempts.delete(product);
+        signal.throwIfAborted();
+        if (error.status === 429) throw error;
+        if (old && now() - old.fetchedAt <= HOUR) return { ...old, stale: true };
+        throw failure('weather_metadata_unavailable');
+      }
+    }
     try {
       if (
         now() - (attempts.get(product) ?? -Infinity) < 30_000 &&
@@ -388,7 +528,7 @@ export function weatherProxy({
       title: spec.title,
       coverage: spec.coverage,
       description: spec.description,
-      source: 'NOAA nowCOAST',
+      source: spec.source ?? 'NOAA nowCOAST',
       attribution: spec.attribution ?? 'NOAA/NWS/NESDIS nowCOAST',
       bounds: value?.bounds ?? null,
       times: value?.times ?? [],
@@ -405,7 +545,7 @@ export function weatherProxy({
           : null,
       tileSize: 256,
       maxLevel: 6,
-      tilingScheme: 'geographic',
+      tilingScheme: spec.tilingScheme ?? 'geographic',
       tileTemplate: time
         ? `/api/weather/tile?product=${product}&time=${encodeURIComponent(time)}&z={z}&x={x}&y={y}`
         : null,
@@ -542,26 +682,53 @@ export function weatherProxy({
         if (value.stale) throw failure('weather_metadata_stale');
         if (now() - (tileFailures.get(key) ?? -Infinity) < 30_000)
           throw failure('weather_upstream_unavailable');
-        const spec = PRODUCTS[product];
-        const upstreamUrl = new URL(`${BASE}${spec.service}/ows`);
-        upstreamUrl.search = new URLSearchParams({
-          service: 'WMS',
-          version: '1.1.1',
-          request: 'GetMap',
-          layers: spec.layer,
-          styles: spec.style,
-          srs: 'EPSG:4326',
-          bbox: bbox.join(','),
-          width: String(imageShape.width),
-          height: String(imageShape.height),
-          format: 'image/png',
-          transparent: 'true',
-          time,
-        }).toString();
+        let upstreamUrl;
+        if (product === 'radar-global') {
+          const path =
+            value.timeMap?.get(time) ??
+            (value.times?.at(-1) ? value.timeMap?.get(value.times.at(-1)) : '');
+          upstreamUrl = `${value.host || 'https://tilecache.rainviewer.com'}${path}/256/${coords ? `${coords[0]}/${coords[1]}/${coords[2]}` : '0/0/0'}/2/1_1.png`;
+        } else if (product === 'clouds-himawari') {
+          const gibsUrl = new URL(
+            'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi',
+          );
+          gibsUrl.search = new URLSearchParams({
+            SERVICE: 'WMS',
+            VERSION: '1.1.1',
+            REQUEST: 'GetMap',
+            LAYERS: 'Himawari_AHI_Band13_Clean_Infrared',
+            SRS: 'EPSG:4326',
+            BBOX: bbox.join(','),
+            WIDTH: String(imageShape.width),
+            HEIGHT: String(imageShape.height),
+            FORMAT: 'image/png',
+            TRANSPARENT: 'TRUE',
+            TIME: time.replace('.000Z', 'Z'),
+          }).toString();
+          upstreamUrl = gibsUrl.href;
+        } else {
+          const spec = PRODUCTS[product];
+          const noaaUrl = new URL(`${BASE}${spec.service}/ows`);
+          noaaUrl.search = new URLSearchParams({
+            service: 'WMS',
+            version: '1.1.1',
+            request: 'GetMap',
+            layers: spec.layer,
+            styles: spec.style,
+            srs: 'EPSG:4326',
+            bbox: bbox.join(','),
+            width: String(imageShape.width),
+            height: String(imageShape.height),
+            format: 'image/png',
+            transparent: 'true',
+            time,
+          }).toString();
+          upstreamUrl = noaaUrl.href;
+        }
         try {
           const bytes = await shared(
             `image:${key}`,
-            (signal) => upstream(upstreamUrl.href, signal, imageShape),
+            (signal) => upstream(upstreamUrl, signal, imageShape),
             controller.signal,
           );
           rememberTile(key, bytes);

@@ -147,16 +147,19 @@ export function createApplicationCatalog({
         createWeatherLayer({
           feed: sources.weather,
           id: 'weather-radar',
+          enableIndonesia: true,
           clock: weatherClock,
         }),
         createWeatherLayer({
           feed: sources.weather,
           id: 'weather-satellite',
+          enableIndonesia: true,
           clock: weatherClock,
         }),
         createWeatherLayer({
           feed: sources.weather,
           id: 'weather-lightning',
+          enableIndonesia: true,
           clock: weatherClock,
         }),
         createCyclonesLayer({ feed: sources.cyclones }),

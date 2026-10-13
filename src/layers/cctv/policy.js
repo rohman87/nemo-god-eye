@@ -535,3 +535,47 @@ export const HOVER_PICK_THROTTLE_MS = 120;
 /** How long the hover card lingers after the pointer leaves the icon. */
 
 export const HOVER_RELEASE_MS = 1_000;
+
+export const CCTV_PACK_LABELS = Object.freeze({
+  jakarta: 'JAKARTA',
+  westjava: 'WEST JAVA',
+  austin: 'AUSTIN',
+  caltrans: 'CALIFORNIA',
+  tfl: 'LONDON (TFL)',
+  ontario: 'ONTARIO',
+  fintraffic: 'FINLAND',
+  drivebc: 'BRITISH COLUMBIA',
+  txdot: 'TEXAS (TXDOT)',
+  tallinn: 'TALLINN',
+  tarktee: 'TARKTEE',
+  warendorf: 'WARENDORF',
+  nsw: 'NSW (AU)',
+  calgary: 'CALGARY',
+  deldot: 'DELAWARE',
+  vegvesen: 'NORWAY',
+  file: 'CUSTOM FILE',
+  env: 'CUSTOM ENV',
+  other: 'OTHER',
+});
+
+export const CCTV_PACK_COLORS = Object.freeze({
+  jakarta: '#00f0ff',
+  westjava: '#00ff88',
+  austin: '#ffb300',
+  caltrans: '#ff3366',
+  tfl: '#a855f7',
+  ontario: '#3b82f6',
+  fintraffic: '#10b981',
+  drivebc: '#06b6d4',
+  txdot: '#f97316',
+  tallinn: '#8b5cf6',
+  tarktee: '#84cc16',
+  warendorf: '#eab308',
+  nsw: '#6366f1',
+  calgary: '#ec4899',
+  deldot: '#14b8a6',
+  vegvesen: '#d946ef',
+  file: '#94a3b8',
+  env: '#64748b',
+  other: '#00d4ff',
+});

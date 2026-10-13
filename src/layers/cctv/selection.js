@@ -23,12 +23,20 @@ export function createSelection({
   function getActiveRecord() {
     if (!layerState._activeCameraId) return null;
     if (layerState._recordById.has(layerState._activeCameraId)) {
-      return layerState._recordById.get(layerState._activeCameraId);
+      const rec = layerState._recordById.get(layerState._activeCameraId);
+      if (!layerState._disabledPacks?.has(rec.camera?.pack)) {
+        return rec;
+      }
     }
-    // Sync _activeCameraId when falling back to first record to prevent ID mismatch
-    const fallback = layerState._records[0] || null;
+    // Sync _activeCameraId when falling back to first enabled record
+    const fallback =
+      layerState._records.find(
+        (r) => !layerState._disabledPacks?.has(r.camera?.pack),
+      ) || null;
     if (fallback && fallback.camera?.id) {
       layerState._activeCameraId = fallback.camera.id;
+    } else {
+      layerState._activeCameraId = null;
     }
     return fallback;
   }
@@ -65,6 +73,8 @@ export function createSelection({
     if (!cameraId || !layerState._recordById.has(cameraId))
       return CCTV_ACTIVATION_RESULT.NOT_FOUND;
     const record = layerState._recordById.get(cameraId);
+    if (layerState._disabledPacks?.has(record.camera?.pack))
+      return CCTV_ACTIVATION_RESULT.NOT_FOUND;
     const previousActiveRecord = getActiveRecord();
     // Re-selecting the already-active camera is a no-op: re-running the
     // activation path re-probes and rewrites the plane entity's geometry, and

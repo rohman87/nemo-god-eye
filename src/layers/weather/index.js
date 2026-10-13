@@ -37,6 +37,10 @@ export function createWeatherLayer({
   feed,
   clock,
   id = 'weather-radar',
+  product: initialProduct,
+  enableIndonesia = Boolean(
+    initialProduct === 'radar-global' || initialProduct === 'clouds-himawari',
+  ),
   cesium = Cesium,
   createRendering = createWeatherRendering,
   documentRef = globalThis.document,
@@ -48,7 +52,17 @@ export function createWeatherLayer({
   const radar = id === 'weather-radar';
   const lightning = id === 'weather-lightning';
   const satellite = !radar && !lightning;
-  let product = radar ? 'radar' : lightning ? 'lightning' : 'clouds-regional';
+  let product =
+    initialProduct ??
+    (radar
+      ? enableIndonesia
+        ? 'radar-global'
+        : 'radar'
+      : lightning
+        ? 'lightning'
+        : enableIndonesia
+          ? 'clouds-himawari'
+          : 'clouds-regional');
   let opacity = 'strong';
   let infrared = 'filtered';
   let viewer = null,
@@ -392,8 +406,11 @@ export function createWeatherLayer({
         rendering?.setAlpha(opacity === 'light' ? 0.4 : satellite ? 0.7 : 0.8);
       }
       if (
-        satellite &&
-        ['clouds', 'clouds-regional'].includes(params.product) &&
+        ((satellite &&
+          ['clouds', 'clouds-regional', 'clouds-himawari'].includes(
+            params.product,
+          )) ||
+          (radar && ['radar', 'radar-global'].includes(params.product))) &&
         params.product !== product
       ) {
         product = params.product;
@@ -425,8 +442,12 @@ export function createWeatherLayer({
         runNavigation
       ) {
         const b = lightning
-          ? { west: 110, south: -25, east: 0, north: 80 }
-          : manifest.bounds;
+          ? { west: 95, south: -15, east: 145, north: 15 }
+          : radar && product === 'radar-global'
+            ? { west: 95, south: -11, east: 141, north: 6 }
+            : satellite && product === 'clouds-himawari'
+              ? { west: 80, south: -15, east: 155, north: 25 }
+              : manifest.bounds;
         runNavigation(() =>
           viewer.camera.flyTo({
             destination: cesium.Rectangle.fromDegrees(
@@ -534,22 +555,30 @@ export function createWeatherLayer({
           lon > b.east ||
           lat < b.south ||
           lat > b.north ||
-          (lightning && lon > 0 && lon < 110));
+          (!enableIndonesia && lightning && lon > 0 && lon < 110));
       const controls = {
         readout: true,
         summary: {
           label: radar
-            ? 'Rain radar · US'
+            ? product === 'radar-global'
+              ? 'Rain radar · Indonesia / Global'
+              : 'Rain radar · US'
             : lightning
               ? 'Lightning density · 15 min'
               : 'Satellite clouds',
           coverage: radar
-            ? 'CONUS'
+            ? product === 'radar-global'
+              ? 'Indonesia & Global'
+              : 'CONUS'
             : lightning
-              ? 'Americas + Pacific'
-              : product === 'clouds'
-                ? 'Global · 60°S–60°N'
-                : 'North America',
+              ? enableIndonesia
+                ? 'Indonesia, Pacific & Americas'
+                : 'Americas + Pacific'
+              : product === 'clouds-himawari'
+                ? 'Indonesia & Asia'
+                : product === 'clouds'
+                  ? 'Global · 60°S–60°N'
+                  : 'North America',
           shownTime: time,
           maxGapMinutes: maxGap() / 60_000,
           detail: time
@@ -574,8 +603,26 @@ export function createWeatherLayer({
           units: radar ? 'dBZ' : lightning ? 'strikes/km²/min ×10³' : '',
         },
         chips: [
+          ...(radar && enableIndonesia
+            ? [
+                ['radar-global', 'Indonesia / Global'],
+                ['radar', 'US (CONUS)'],
+              ].map(([value, label]) => ({
+                id: value,
+                label,
+                active: product === value,
+                params: { product: value },
+                title:
+                  value === 'radar-global'
+                    ? 'Indonesia & Global composite Doppler radar from RainViewer & BMKG'
+                    : 'US CONUS base reflectivity mosaic from NOAA nowCOAST MRMS',
+              }))
+            : []),
           ...(satellite
             ? [
+                ...(enableIndonesia
+                  ? [['clouds-himawari', 'Indonesia / Asia']]
+                  : []),
                 ['clouds-regional', 'N. America'],
                 ['clouds', 'Global'],
               ].map(([value, label]) => ({
@@ -584,9 +631,11 @@ export function createWeatherLayer({
                 active: product === value,
                 params: { product: value },
                 title:
-                  value === 'clouds'
-                    ? 'Hourly global mosaic; usually 2–3 hours delayed'
-                    : 'GOES regional clouds; approximately 5-minute updates',
+                  value === 'clouds-himawari'
+                    ? 'Himawari-9 10-minute infrared covering Indonesia & Asia-Pacific'
+                    : value === 'clouds'
+                      ? 'Hourly global mosaic; usually 2–3 hours delayed'
+                      : 'GOES regional clouds; approximately 5-minute updates',
               }))
             : []),
           ...(satellite
@@ -618,10 +667,14 @@ export function createWeatherLayer({
           {
             id: 'coverage',
             label: radar
-              ? 'View US radar'
+              ? product === 'radar-global'
+                ? 'View Indonesia'
+                : 'View US radar'
               : lightning
-                ? 'View Americas & Pacific'
-                : 'View coverage',
+                ? 'View Indonesia & Pacific'
+                : product === 'clouds-himawari'
+                  ? 'View Indonesia & Asia'
+                  : 'View coverage',
             disabled: !manifest || !runNavigation,
             params: { focus: true },
           },
@@ -646,13 +699,17 @@ export function createWeatherLayer({
             : 'GOES-19/18 longwave infrared Band 14 regional; NESDIS global longwave mosaic. Clouds only dims everything but bright, cold cloud tops; a brightness filter, not a cloud mask. Coverage and freshness differ by region.',
       };
       controls.summary.settings = [
-        ...(satellite
+        ...(satellite || (radar && enableIndonesia)
           ? [
               {
                 id: 'region',
                 label: 'REGION',
                 chips: controls.chips.filter(({ params }) => params.product),
               },
+            ]
+          : []),
+        ...(satellite
+          ? [
               {
                 id: 'image',
                 label: 'IMAGE',

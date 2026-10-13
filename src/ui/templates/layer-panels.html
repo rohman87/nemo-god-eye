@@ -23,6 +23,19 @@
       </div>
       <div class="cyber-panel-body" data-rail-scroller>
       <div id="cctv-frame-wrap" class="cctv-frame-wrap">
+        <div id="cctv-fullscreen-bar" class="cctv-fullscreen-bar">
+          <span id="cctv-overlay-title" class="cctv-overlay-title">CCTV LIVE VIEW</span>
+          <div id="cctv-fullscreen-nav" class="cctv-fullscreen-nav">
+            <button id="cctv-fs-prev-btn" class="cctv-fs-nav-btn scene-btn" type="button" title="Previous camera (Left arrow / [)" aria-label="Previous camera">◀ PREV</button>
+            <button id="cctv-fs-next-btn" class="cctv-fs-nav-btn scene-btn" type="button" title="Next camera (Right arrow / ])" aria-label="Next camera">NEXT ▶</button>
+          </div>
+          <div class="cctv-fullscreen-actions">
+            <button id="cctv-fullscreen-btn" class="cctv-fullscreen-btn scene-btn" type="button" title="Toggle Fullscreen view (Esc)" aria-label="Fullscreen view">⤢ FULLSCREEN</button>
+            <button id="cctv-fullscreen-close-btn" class="cctv-fullscreen-close-btn" type="button" title="Close fullscreen (Esc)" aria-label="Close fullscreen" hidden>×</button>
+          </div>
+        </div>
+        <button id="cctv-fs-side-prev" class="cctv-fs-side-btn cctv-fs-side-prev" type="button" title="Previous camera (Left arrow / [)" aria-label="Previous camera">‹</button>
+        <button id="cctv-fs-side-next" class="cctv-fs-side-btn cctv-fs-side-next" type="button" title="Next camera (Right arrow / ])" aria-label="Next camera">›</button>
         <img id="cctv-frame" alt="CCTV feed frame" />
         <canvas id="cctv-video" class="cctv-frame" hidden></canvas>
       </div>
@@ -45,6 +58,22 @@
       <div class="cctv-controls">
         <button id="cctv-projection-btn" class="scene-btn">PROJECTION ON</button>
         <span id="cctv-quality-chip">CAL · --</span>
+      </div>
+      <div class="cctv-packs-section">
+        <div class="cctv-packs-header">
+          <button id="cctv-packs-submenu-btn" class="cctv-packs-submenu-toggle" type="button" aria-expanded="true">
+            <span class="cctv-summary-label">PROVIDER PACKS</span>
+            <span id="cctv-packs-count-badge" class="cctv-packs-badge">ALL ACTIVE</span>
+            <span class="cctv-submenu-arrow">▾</span>
+          </button>
+        </div>
+        <div id="cctv-packs-submenu-content" class="cctv-packs-submenu-content">
+          <div class="cctv-packs-actions">
+            <button id="cctv-packs-all-btn" class="cctv-mini-btn" type="button">ENABLE ALL</button>
+            <button id="cctv-packs-none-btn" class="cctv-mini-btn" type="button">DISABLE ALL</button>
+          </div>
+          <div id="cctv-provider-chips" class="cctv-chips sl-chips" role="group" aria-label="CCTV Provider Packs"></div>
+        </div>
       </div>
       <div class="cctv-calibration-block">
         <div class="cctv-calibration-header">

@@ -1973,7 +1973,7 @@ export function loadJakartaSourcesFromOpenData({
     process.env.CCTV_JAKARTA_MAX_SOURCES || DEFAULT_JAKARTA_MAX_SOURCES,
   );
   const maxCount = Number.isFinite(maxRaw)
-    ? Math.max(8, Math.min(500, Math.floor(maxRaw)))
+    ? Math.max(8, Math.min(600, Math.floor(maxRaw)))
     : DEFAULT_JAKARTA_MAX_SOURCES;
   const prioritized = prioritizeSources(unique, maxCount, [JAKARTA_CENTER]);
   console.log(

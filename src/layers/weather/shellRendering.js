@@ -395,7 +395,13 @@ export function createWeatherShell({
   viewer,
   cesium,
   product,
-  height = WEATHER_SHELL_HEIGHTS[product],
+  height =
+    WEATHER_SHELL_HEIGHTS[product] ??
+    (product === 'clouds-himawari'
+      ? WEATHER_SHELL_HEIGHTS['clouds-regional']
+      : product === 'radar-global'
+        ? WEATHER_SHELL_HEIGHTS.radar
+        : 6_000),
   getHost = () => ({ collection: null, kind: 'tileset' }),
   onChange = () => {},
   timeoutMs = 25_000,
@@ -410,7 +416,10 @@ export function createWeatherShell({
   const scene = viewer.scene;
   const size = fitTexture(cesium, WEATHER_IMAGE_SIZES[product]);
   const detailSize = fitTexture(cesium, WEATHER_DETAIL_SIZE);
-  const infrared = product === 'clouds' || product === 'clouds-regional';
+  const infrared =
+    product === 'clouds' ||
+    product === 'clouds-regional' ||
+    product === 'clouds-himawari';
   // Global infrared contrast depends on the requested extent, so a window would
   // not match the image around it; the globe host also shows one mosaic.
   const detailed = product !== 'clouds';

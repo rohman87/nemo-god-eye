@@ -1,4 +1,5 @@
 import { createCctvVideoSurface } from './cctvVideo.js';
+import { syncChipGroup } from './chipGroup.js';
 export function _calBadgeLabel(badge) {
   switch (badge) {
     case 'calibrated':
@@ -84,6 +85,10 @@ export function _renderCctvState(state) {
     this._cctvNearestBtn,
     this._cctvPrevBtn,
     this._cctvNextBtn,
+    this._cctvFsPrevBtn,
+    this._cctvFsNextBtn,
+    this._cctvFsSidePrev,
+    this._cctvFsSideNext,
   ]) {
     if (!btn) continue;
     btn.disabled = !enabled || cameras.length === 0;
@@ -206,6 +211,53 @@ export function _renderCctvState(state) {
     }
   } else if (liveIntent) {
     this._clearCctvFrame();
+  }
+
+  // Fullscreen overlay title
+  if (this._cctvOverlayTitle) {
+    if (activeCamera) {
+      const isLive = liveIntent;
+      const packEntry = (state?.packs || []).find(
+        (p) => p.id === activeCamera.pack,
+      );
+      const packLabel =
+        packEntry?.label ||
+        (activeCamera.pack ? activeCamera.pack.toUpperCase() : '');
+      this._cctvOverlayTitle.textContent = `${activeCamera.city} · ${activeCamera.name}${packLabel ? ` [${packLabel}]` : ''}${isLive ? ' · LIVE HLS' : ''}`;
+    } else if (cameras.length > 0) {
+      this._cctvOverlayTitle.textContent = enabled
+        ? 'CLICK A CAMERA TO ACTIVATE'
+        : 'CCTV STANDING BY';
+    } else {
+      this._cctvOverlayTitle.textContent = 'CCTV OFF';
+    }
+  }
+
+  // Provider packs chips and badge
+  const packs = state?.packs || [];
+  if (this._cctvPacksCountBadge) {
+    const activeCount = packs.filter((p) => p.active).length;
+    const totalCount = packs.length;
+    if (totalCount === 0) {
+      this._cctvPacksCountBadge.textContent = 'NO PACKS';
+    } else if (activeCount === totalCount) {
+      this._cctvPacksCountBadge.textContent = 'ALL ACTIVE';
+      this._cctvPacksCountBadge.classList.add('all-active');
+    } else {
+      this._cctvPacksCountBadge.textContent = `${activeCount}/${totalCount} ACTIVE`;
+      this._cctvPacksCountBadge.classList.remove('all-active');
+    }
+  }
+
+  if (this._cctvProviderChips) {
+    const chips = packs.map((pack) => ({
+      id: pack.id,
+      label: `${pack.label} (${pack.count})`,
+      title: `${pack.label}: ${pack.count} cameras — Click to toggle`,
+      active: pack.active,
+      color: pack.color,
+    }));
+    syncChipGroup(this._cctvProviderChips, chips);
   }
 
   this._syncCctvSourceBadge(activeCamera, enabled);

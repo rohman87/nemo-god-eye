@@ -204,5 +204,6 @@ export function createState({ services }) {
 
   layerState._moveStartListener = null;
   layerState._sourceAbort = null;
+  layerState._disabledPacks = new Set();
   return layerState;
 }

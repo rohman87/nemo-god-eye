@@ -120,6 +120,8 @@ export {
   CCTV_FOCUS_RESULT,
   CCTV_PROJECTION_OVERLAY_SOURCE_ID,
   CCTV_PROJECTION_OVERLAY_SOURCE_OPTIONS,
+  CCTV_PACK_LABELS,
+  CCTV_PACK_COLORS,
 } from './policy.js';
 
 export { createCctvSource } from './source.js';

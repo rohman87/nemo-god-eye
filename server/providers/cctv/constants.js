@@ -203,7 +203,7 @@ export const WARENDORF_IMAGE_ORIGINS = Object.freeze([
 ]);
 /** Jakarta (Indonesia) metropolitan CCTV: curated catalog and live toll corridor streams. */
 export const DEFAULT_JAKARTA_SOURCE_FILE = 'config/cctv_sources.jakarta.json';
-export const DEFAULT_JAKARTA_MAX_SOURCES = 250;
+export const DEFAULT_JAKARTA_MAX_SOURCES = 550;
 export const JAKARTA_CENTER = { lat: -6.2088, lon: 106.8456 };
 
 /** West Java (Indonesia) CCTV: Pelindung Kota Bandung municipal feeds and arterial tollways. */

@@ -218,3 +218,192 @@ test('disposing during camera enable prevents the delayed focus and future click
   assert.equal(enables, 1);
   assert.equal(focuses, 0);
 });
+
+test('fullscreen expand, collapse, and Escape key handling', (t) => {
+  const wrap = element();
+  wrap.parentNode = { appendChild() {}, insertBefore() {} };
+  wrap.setAttribute = () => {};
+  wrap.removeAttribute = () => {};
+  const fullscreenBtn = new EventTarget();
+  const closeBtn = new EventTarget();
+  closeBtn.hidden = true;
+  const controls = new CctvControls({
+    elements: {
+      _cctvPanel: {},
+      _cctvFrameWrap: wrap,
+      _cctvFullscreenBtn: fullscreenBtn,
+      _cctvFullscreenCloseBtn: closeBtn,
+    },
+    cctv: {},
+    actions: { isEnabled: () => true, syncViewport() {} },
+  });
+  t.after(() => controls.destroy());
+
+  assert.equal(controls.isViewerExpanded(), false);
+  fullscreenBtn.dispatchEvent(new Event('click'));
+  assert.equal(controls.isViewerExpanded(), true);
+  assert.equal(closeBtn.hidden, false);
+
+  fullscreenBtn.dispatchEvent(new Event('click'));
+  assert.equal(controls.isViewerExpanded(), false);
+  assert.equal(closeBtn.hidden, true);
+
+  controls.setViewerExpanded(true);
+  assert.equal(controls.isViewerExpanded(), true);
+  closeBtn.dispatchEvent(new Event('click'));
+  assert.equal(controls.isViewerExpanded(), false);
+});
+
+test('provider pack chip clicks forward togglePack parameter', (t) => {
+  const chipsContainer = new EventTarget();
+  chipsContainer.children = [];
+  let setParamsCall = null;
+  const controls = new CctvControls({
+    elements: {
+      _cctvPanel: {},
+      _cctvProviderChips: chipsContainer,
+    },
+    cctv: {},
+    actions: {
+      isEnabled: () => true,
+      syncViewport() {},
+      setParams(params, options) {
+        setParamsCall = { params, options };
+      },
+    },
+  });
+  t.after(() => controls.destroy());
+
+  const chipBtn = {
+    dataset: { chipId: 'jakarta' },
+    closest(selector) {
+      return selector === '.data-toggle-chip' ? this : null;
+    },
+  };
+  const clickEvent = new Event('click');
+  Object.defineProperty(clickEvent, 'target', { value: chipBtn });
+  chipsContainer.dispatchEvent(clickEvent);
+
+  assert.deepEqual(setParamsCall, {
+    params: { togglePack: 'jakarta' },
+    options: { origin: 'user' },
+  });
+});
+
+test('provider packs quick enable all and disable all buttons', (t) => {
+  const allBtn = new EventTarget();
+  const noneBtn = new EventTarget();
+  let calls = [];
+  const controls = new CctvControls({
+    elements: {
+      _cctvPanel: {},
+      _cctvPacksAllBtn: allBtn,
+      _cctvPacksNoneBtn: noneBtn,
+    },
+    cctv: {},
+    actions: {
+      isEnabled: () => true,
+      syncViewport() {},
+      setParams(params, options) {
+        calls.push({ params, options });
+      },
+    },
+  });
+  t.after(() => controls.destroy());
+
+  controls._cctvState = {
+    packs: [{ id: 'jakarta' }, { id: 'westjava' }],
+  };
+
+  allBtn.dispatchEvent(new Event('click'));
+  noneBtn.dispatchEvent(new Event('click'));
+
+  assert.deepEqual(calls[0].params, { disabledPacks: [] });
+  assert.deepEqual(calls[1].params, { disabledPacks: ['jakarta', 'westjava'] });
+});
+
+test('fullscreen prev/next buttons and arrow keys cycle cameras', async (t) => {
+  const priorDoc = globalThis.document;
+  globalThis.document = new EventTarget();
+  t.after(() => {
+    globalThis.document = priorDoc;
+  });
+  const wrap = element();
+  wrap.parentNode = { appendChild() {}, insertBefore() {} };
+  wrap.setAttribute = () => {};
+  wrap.removeAttribute = () => {};
+  const fsPrevBtn = new EventTarget();
+  const fsNextBtn = new EventTarget();
+  const fsSidePrev = new EventTarget();
+  const fsSideNext = new EventTarget();
+  const cycled = [];
+  const controls = new CctvControls({
+    elements: {
+      _cctvPanel: {},
+      _cctvFrameWrap: wrap,
+      _cctvFsPrevBtn: fsPrevBtn,
+      _cctvFsNextBtn: fsNextBtn,
+      _cctvFsSidePrev: fsSidePrev,
+      _cctvFsSideNext: fsSideNext,
+    },
+    cctv: {
+      cycleCamera: (delta) => {
+        cycled.push(delta);
+        return 'cam-' + delta;
+      },
+      focusCamera: () => {},
+    },
+    actions: {
+      isEnabled: () => true,
+      toggleEnabled: async () => true,
+      syncViewport() {},
+      runExplicitFocus: (select, focus) => {
+        const id = select();
+        if (id) focus(id);
+      },
+    },
+  });
+  t.after(() => controls.destroy());
+
+  // Top header fs nav buttons
+  fsPrevBtn.dispatchEvent(new Event('click'));
+  await Promise.resolve();
+  fsNextBtn.dispatchEvent(new Event('click'));
+  await Promise.resolve();
+  assert.deepEqual(cycled, [-1, 1]);
+
+  // Floating side chevron buttons
+  fsSidePrev.dispatchEvent(new Event('click'));
+  await Promise.resolve();
+  fsSideNext.dispatchEvent(new Event('click'));
+  await Promise.resolve();
+  assert.deepEqual(cycled, [-1, 1, -1, 1]);
+
+  // Arrow keys when not expanded should NOT cycle
+  const arrowLeft = new Event('keydown');
+  arrowLeft.key = 'ArrowLeft';
+  const arrowRight = new Event('keydown');
+  arrowRight.key = 'ArrowRight';
+  const bracketLeft = new Event('keydown');
+  bracketLeft.key = '[';
+  const bracketRight = new Event('keydown');
+  bracketRight.key = ']';
+
+  document.dispatchEvent(arrowLeft);
+  await Promise.resolve();
+  document.dispatchEvent(arrowRight);
+  await Promise.resolve();
+  assert.deepEqual(cycled, [-1, 1, -1, 1]);
+
+  // Arrow keys and [ / ] when expanded SHOULD cycle
+  controls.setViewerExpanded(true);
+  document.dispatchEvent(arrowLeft);
+  await Promise.resolve();
+  document.dispatchEvent(arrowRight);
+  await Promise.resolve();
+  document.dispatchEvent(bracketLeft);
+  await Promise.resolve();
+  document.dispatchEvent(bracketRight);
+  await Promise.resolve();
+  assert.deepEqual(cycled, [-1, 1, -1, 1, -1, 1, -1, 1]);
+});

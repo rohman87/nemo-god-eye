@@ -365,3 +365,311 @@
   color: #a8f7ff;
   text-shadow: 0 0 10px rgba(0, 212, 255, 0.18);
 }
+
+/* ── Fullscreen Overlay & Bar ─────────────────────────────────────────── */
+.cctv-fullscreen-bar {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.cctv-fullscreen-nav,
+.cctv-fs-side-btn {
+  display: none;
+}
+
+.cctv-fullscreen-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  pointer-events: auto;
+}
+
+.cctv-overlay-title {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--accent);
+  background: rgba(4, 7, 11, 0.75);
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 212, 255, 0.25);
+  backdrop-filter: blur(8px);
+  max-width: 50%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.85;
+}
+
+.cctv-fullscreen-btn {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 212, 255, 0.4);
+  background: rgba(8, 14, 20, 0.85);
+  color: var(--text-primary);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: all 160ms ease;
+}
+
+.cctv-fullscreen-btn:hover {
+  background: rgba(0, 212, 255, 0.22);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.35);
+}
+
+.cctv-fullscreen-close-btn {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  line-height: 1;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 80, 80, 0.4);
+  background: rgba(30, 10, 10, 0.85);
+  color: #ff8888;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: all 160ms ease;
+}
+
+.cctv-fullscreen-close-btn:hover {
+  background: rgba(255, 60, 60, 0.3);
+  border-color: #ff5555;
+  color: #ffffff;
+}
+
+/* ── Fullscreen Theater Mode (re-parented to <body>) ─────────────────── */
+.cctv-frame-wrap-expanded {
+  position: fixed;
+  left: 3vw;
+  right: 3vw;
+  top: 4vh;
+  bottom: 5vh;
+  z-index: 145;
+  display: flex;
+  flex-direction: column;
+  background: rgba(5, 8, 14, 0.96);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(0, 212, 255, 0.65);
+  box-shadow:
+    0 0 60px rgba(0, 212, 255, 0.2),
+    0 30px 100px rgba(0, 0, 0, 0.95);
+  border-radius: 12px;
+  outline: none;
+  overflow: hidden;
+  padding: 14px;
+}
+
+.cctv-frame-wrap-expanded .cctv-fullscreen-bar {
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+  width: 100%;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(0, 212, 255, 0.22);
+  margin-bottom: 10px;
+  pointer-events: auto;
+}
+
+.cctv-frame-wrap-expanded .cctv-overlay-title {
+  font-size: 0.82rem;
+  letter-spacing: 0.12em;
+  padding: 6px 12px;
+  max-width: 50%;
+  opacity: 1;
+}
+
+.cctv-frame-wrap-expanded .cctv-fullscreen-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto;
+  pointer-events: auto;
+}
+
+.cctv-fs-nav-btn {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  padding: 5px 12px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 212, 255, 0.4);
+  background: rgba(8, 16, 24, 0.85);
+  color: #a8f7ff;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: all 160ms ease;
+  user-select: none;
+}
+
+.cctv-fs-nav-btn:hover:not(:disabled) {
+  background: rgba(0, 212, 255, 0.24);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.4);
+  color: #ffffff;
+}
+
+.cctv-fs-nav-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.cctv-frame-wrap-expanded .cctv-fs-side-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  top: 55%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 68px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 212, 255, 0.35);
+  background: rgba(6, 12, 20, 0.72);
+  color: #00d4ff;
+  font-size: 32px;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  z-index: 12;
+  transition: all 180ms ease;
+  opacity: 0.65;
+  user-select: none;
+  pointer-events: auto;
+}
+
+.cctv-frame-wrap-expanded .cctv-fs-side-prev {
+  left: 20px;
+}
+
+.cctv-frame-wrap-expanded .cctv-fs-side-next {
+  right: 20px;
+}
+
+.cctv-frame-wrap-expanded .cctv-fs-side-btn:hover:not(:disabled) {
+  opacity: 1;
+  background: rgba(0, 212, 255, 0.25);
+  border-color: #00d4ff;
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+  transform: translateY(-50%) scale(1.08);
+  color: #ffffff;
+}
+
+.cctv-frame-wrap-expanded .cctv-fs-side-btn:active:not(:disabled) {
+  transform: translateY(-50%) scale(0.96);
+}
+
+.cctv-frame-wrap-expanded .cctv-fs-side-btn:disabled {
+  opacity: 0.18;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.cctv-frame-wrap-expanded #cctv-frame,
+.cctv-frame-wrap-expanded #cctv-video {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  max-height: calc(100vh - 140px);
+  aspect-ratio: auto;
+  object-fit: contain;
+}
+
+/* ── Provider Packs Sub-Menu ─────────────────────────────────────────── */
+.cctv-packs-section {
+  margin-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 8px;
+}
+
+.cctv-packs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cctv-packs-submenu-toggle {
+  background: transparent;
+  border: none;
+  padding: 4px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  cursor: pointer;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.cctv-packs-badge {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(0, 212, 255, 0.12);
+  color: var(--accent);
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  margin-left: auto;
+  margin-right: 8px;
+}
+
+.cctv-packs-badge.all-active {
+  background: rgba(0, 255, 136, 0.12);
+  color: #00ff88;
+  border-color: rgba(0, 255, 136, 0.35);
+}
+
+.cctv-submenu-arrow {
+  font-size: 9px;
+  color: var(--text-secondary);
+}
+
+.cctv-packs-actions {
+  display: flex;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.cctv-mini-btn {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1.2px;
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+
+.cctv-mini-btn:hover {
+  background: rgba(0, 212, 255, 0.16);
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.cctv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
