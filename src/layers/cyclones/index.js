@@ -171,7 +171,7 @@ export function createCyclonesLayer({
     id: 'weather-cyclones',
     name: 'Cyclone advisories',
     icon: '◉',
-    source: 'NOAA NHC / CPHC',
+    source: 'JTWC / BMKG TCWC',
     updateInterval: 300_000,
     init(nextViewer) {
       viewer = nextViewer;
@@ -442,7 +442,7 @@ export function createCyclonesLayer({
         loading,
         error,
         stale: Boolean(snapshot?.stale),
-        source: 'NOAA NHC / CPHC',
+        source: snapshot?.source || 'JTWC / BMKG TCWC',
         advisoryAt: storm?.issuedAt || null,
         empty: Boolean(
           snapshot && !snapshot.unavailable && !snapshot.storms.length,

@@ -13,6 +13,7 @@ const PRODUCTS = Object.freeze({
       'Indonesia, Pacific and Americas (not global: 95°E across the dateline to 0°, 25°S–80°N).',
     description:
       'Observed 15-minute lightning strike density on an approximately 8 km grid, scaled as strikes/km²/min ×10³. Ground-network density, not individual GLM flashes.',
+    source: 'Vaisala GLD360 / BMKG',
     attribution: 'NOAA/NWS nowCOAST; derived from Vaisala NLDN/GLD360',
     metadataTtlMs: 600_000,
     image: Object.freeze({ width: 4096, height: 2048 }),
@@ -70,7 +71,7 @@ const PRODUCTS = Object.freeze({
       'Indonesia, East Asia & Western Pacific: 80°E–160°W, 60°S–60°N.',
     description:
       'Himawari-9 AHI Band 13 clean longwave infrared cloud patterns, approximately 2 km and 10-minute updates.',
-    source: 'JMA Himawari-9 / NASA GIBS',
+    source: 'Himawari-9 / NASA GIBS',
     attribution: 'JMA Himawari-9 · NASA GIBS',
     metadataTtlMs: 300_000,
     tilingScheme: 'geographic',

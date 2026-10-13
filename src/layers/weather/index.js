@@ -272,13 +272,13 @@ export function createWeatherLayer({
     get source() {
       return radar
         ? product === 'radar-global'
-          ? 'RainViewer / BMKG · OBSERVED'
-          : 'NOAA nowCOAST · OBSERVED'
+          ? 'RainViewer / BMKG'
+          : 'NOAA nowCOAST'
         : lightning
-          ? 'NOAA nowCOAST / GLD360 · OBSERVED'
+          ? (enableIndonesia ? 'Vaisala GLD360 / BMKG' : 'NOAA nowCOAST')
           : product === 'clouds-himawari'
-            ? 'JMA Himawari-9 / NASA GIBS · OBSERVED'
-            : 'NOAA nowCOAST · OBSERVED';
+            ? 'Himawari-9 / NASA GIBS'
+            : 'NOAA nowCOAST';
     },
     updateInterval: lightning ? 600_000 : 120_000,
     init(nextViewer) {
@@ -755,11 +755,15 @@ export function createWeatherLayer({
         stale: Boolean(manifest?.stale || observationDelayed()),
         source:
           manifest?.source ||
-          (product === 'radar-global'
-            ? 'RainViewer · BMKG'
-            : product === 'clouds-himawari'
-              ? 'JMA Himawari-9 · NASA GIBS'
-              : 'NOAA nowCOAST'),
+          (radar
+            ? product === 'radar-global'
+              ? 'RainViewer / BMKG'
+              : 'NOAA nowCOAST'
+            : lightning
+              ? (enableIndonesia ? 'Vaisala GLD360 / BMKG' : 'NOAA nowCOAST')
+              : product === 'clouds-himawari'
+                ? 'Himawari-9 / NASA GIBS'
+                : 'NOAA nowCOAST'),
         observedAt: shownTime(),
       };
     },

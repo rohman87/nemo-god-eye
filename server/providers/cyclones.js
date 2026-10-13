@@ -497,9 +497,9 @@ export function cycloneProxy({
   function describe(value, stale = false) {
     return {
       schemaVersion: 1,
-      source: 'NOAA NHC / CPHC',
+      source: 'JTWC / BMKG TCWC',
       attribution:
-        'NOAA/NWS National Hurricane Center / Central Pacific Hurricane Center',
+        'JTWC / BMKG TCWC & NOAA NHC / CPHC',
       coverage: COVERAGE,
       fetchedAt: value?.fetchedAt ?? null,
       stale: stale || !value,
