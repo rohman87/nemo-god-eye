@@ -4,6 +4,7 @@ import {
   createWeatherClock,
   RADAR_MAX_GAP_MS,
   REGIONAL_INFRARED_MAX_GAP_MS,
+  HIMAWARI_INFRARED_MAX_GAP_MS,
   GLOBAL_INFRARED_MAX_GAP_MS,
   LIGHTNING_MAX_GAP_MS,
 } from './clock.js';
@@ -79,6 +80,7 @@ test('union excludes suspended products; nearest selection never uses future or 
   assert.equal(clock.selectFor('global', time(121)), null);
   assert.equal(clock.selectFor('missing', time(10)), null);
   assert.equal(REGIONAL_INFRARED_MAX_GAP_MS, 30 * 60_000);
+  assert.equal(HIMAWARI_INFRARED_MAX_GAP_MS, 90 * 60_000);
   assert.equal(LIGHTNING_MAX_GAP_MS, 30 * 60_000);
 });
 

@@ -1,5 +1,6 @@
 export const RADAR_MAX_GAP_MS = 30 * 60_000;
 export const REGIONAL_INFRARED_MAX_GAP_MS = 30 * 60_000;
+export const HIMAWARI_INFRARED_MAX_GAP_MS = 90 * 60_000;
 export const GLOBAL_INFRARED_MAX_GAP_MS = 3 * 60 * 60_000;
 export const LIGHTNING_MAX_GAP_MS = 30 * 60_000;
 

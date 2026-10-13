@@ -461,15 +461,16 @@ export function weatherProxy({
           signal,
         );
         const latestMs = Date.parse(defaultIso);
-        const times = [];
-        for (let i = 12; i >= 0; i--) {
+        const allowedTimes = [];
+        for (let i = 144; i >= 0; i--) {
           const d = new Date(latestMs - i * 10 * 60_000);
-          times.push(d.toISOString());
+          allowedTimes.push(d.toISOString());
         }
+        const times = allowedTimes.slice(-13);
         const value = {
           bounds: { west: 80, south: -60, east: 180, north: 60 },
           times,
-          allowedTimes: times,
+          allowedTimes,
           fetchedAt: now(),
         };
         metadata.set(product, value);

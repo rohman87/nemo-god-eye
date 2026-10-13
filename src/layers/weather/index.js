@@ -4,6 +4,7 @@ import { imageryHostStatus } from './imageryHost.js';
 import {
   RADAR_MAX_GAP_MS,
   REGIONAL_INFRARED_MAX_GAP_MS,
+  HIMAWARI_INFRARED_MAX_GAP_MS,
   GLOBAL_INFRARED_MAX_GAP_MS,
   LIGHTNING_MAX_GAP_MS,
 } from './clock.js';
@@ -94,7 +95,9 @@ export function createWeatherLayer({
         ? LIGHTNING_MAX_GAP_MS
         : product === 'clouds'
           ? GLOBAL_INFRARED_MAX_GAP_MS
-          : REGIONAL_INFRARED_MAX_GAP_MS;
+          : product === 'clouds-himawari'
+            ? HIMAWARI_INFRARED_MAX_GAP_MS
+            : REGIONAL_INFRARED_MAX_GAP_MS;
   const isLatest = () =>
     clock ? clock.getState().mode === 'latest' : followLatest;
   const getHost = () =>
@@ -108,7 +111,13 @@ export function createWeatherLayer({
   const observationDelayed = () =>
     manifest?.latest &&
     Date.now() - Date.parse(manifest.latest) >
-      (product === 'clouds' ? 240 : lightning ? 45 : 20) * 60_000;
+      (product === 'clouds'
+        ? 240
+        : product === 'clouds-himawari'
+          ? 90
+          : lightning
+            ? 45
+            : 20) * 60_000;
   const stop = () => {
     if (clock) return;
     playing = false;
@@ -373,7 +382,8 @@ export function createWeatherLayer({
           if (
             isLatest() &&
             request === controller &&
-            !controller.signal.aborted
+            !controller.signal.aborted &&
+            shownTime() !== snapshot.latest
           )
             await show(snapshot.latest, controller.signal);
           return (
@@ -433,7 +443,7 @@ export function createWeatherLayer({
         stop();
         manifest = null;
         error = null;
-        loading = false;
+        loading = true;
         followLatest = true;
         rendering?.clear();
         if (clock) void clock.refresh();

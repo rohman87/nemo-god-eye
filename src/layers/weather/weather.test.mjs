@@ -1922,6 +1922,12 @@ test('observed descriptors keep configuration only and label satellite clouds by
         'Global · 60°S–60°N',
       );
       assert.equal(h.layer.getRowControls().summary.maxGapMinutes, 180);
+      h.layer.setParams({ product: 'clouds-himawari' });
+      assert.equal(
+        h.layer.getRowControls().summary.coverage,
+        'Indonesia & Asia',
+      );
+      assert.equal(h.layer.getRowControls().summary.maxGapMinutes, 90);
     }
     h.layer.destroy();
   }
