@@ -210,8 +210,10 @@ export const JAKARTA_CENTER = { lat: -6.2088, lon: 106.8456 };
 export const DEFAULT_WESTJAVA_SOURCE_FILE = 'config/cctv_sources.westjava.json';
 export const DEFAULT_WESTJAVA_MAX_SOURCES = 450;
 export const BANDUNG_CENTER = { lat: -6.9175, lon: 107.6191 };
+export const DEPOK_CENTER = { lat: -6.3944, lon: 106.8231 };
 export const WESTJAVA_ANCHORS = [
   BANDUNG_CENTER,
+  DEPOK_CENTER,
   { lat: -6.382, lon: 106.918 },
   { lat: -6.5971, lon: 106.806 },
 ];

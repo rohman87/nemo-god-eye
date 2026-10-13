@@ -75,11 +75,11 @@ test('West Java loader registers Bandung city and regional cameras', async (t) =
 
   for (const camera of cameras) {
     assert.ok(
-      camera.city === 'Bandung' || camera.city === 'West Java',
+      camera.city === 'Bandung' || camera.city === 'West Java' || camera.city === 'Depok',
       `Unexpected city: ${camera.city}`,
     );
     assert.ok(
-      camera.cityId === 'bandung' || camera.cityId === 'westjava',
+      camera.cityId === 'bandung' || camera.cityId === 'westjava' || camera.cityId === 'depok',
       `Unexpected cityId: ${camera.cityId}`,
     );
     assert.equal(camera.feedType, 'hls');
@@ -98,6 +98,7 @@ test('West Java loader registers Bandung city and regional cameras', async (t) =
   assert.ok(ids.has('bandung-braga-1'), 'Braga 01 should be registered');
   assert.ok(ids.has('bandung-cibeureum'), 'Cibeureum should be registered');
   assert.ok(ids.has('westjava-cct-jatikarya'), 'GT Jatikarya should be registered');
+  assert.ok(ids.has('depok-dishub-margo-city-1'), 'Depok Margo City should be registered');
 });
 
 test('Catalog integration includes Jakarta and West Java packs in merge order', async (t) => {
