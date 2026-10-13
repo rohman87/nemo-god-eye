@@ -269,7 +269,17 @@ export function createWeatherLayer({
         ? 'Lightning density'
         : 'Satellite clouds',
     icon: radar ? '◉' : lightning ? 'ϟ' : '☁',
-    source: 'NOAA nowCOAST · OBSERVED',
+    get source() {
+      return radar
+        ? product === 'radar-global'
+          ? 'RainViewer / BMKG · OBSERVED'
+          : 'NOAA nowCOAST · OBSERVED'
+        : lightning
+          ? 'NOAA nowCOAST / GLD360 · OBSERVED'
+          : product === 'clouds-himawari'
+            ? 'JMA Himawari-9 / NASA GIBS · OBSERVED'
+            : 'NOAA nowCOAST · OBSERVED';
+    },
     updateInterval: lightning ? 600_000 : 120_000,
     init(nextViewer) {
       viewer = nextViewer;
@@ -496,7 +506,7 @@ export function createWeatherLayer({
     },
     getParams() {
       return radar
-        ? { opacity }
+        ? (enableIndonesia ? { product, opacity } : { opacity })
         : satellite
           ? { product, opacity, infrared }
           : { product, opacity };
@@ -691,12 +701,16 @@ export function createWeatherLayer({
             : [],
         info: hostHidden
           ? hostStatus
-          : `${radar ? 'RADAR REFLECTIVITY · dBZ' : lightning ? 'LIGHTNING DENSITY · 15 min accumulation' : product === 'clouds' ? 'GLOBAL INFRARED · hourly' : 'GOES INFRARED · ~5 min'}\n${time ? `${followLatest ? 'Latest observation' : 'History'}: ${utc(time)}\n${lag}${current && !followLatest ? ` · frame ${index + 1}/${times.length}` : ''}${loading ? ' · loading' : ''}` : `Observation: unavailable${loading ? ' · loading' : ''}`}${missing ? `\n${missing}` : ''}${manifest?.stale ? '\nSTALE · cached source metadata' : ''}${error || diagnostic?.error ? '\n' + (error || diagnostic.error) : ''}\n${radar ? 'Contiguous US · gaps ≠ no rain' : lightning ? 'Americas + Pacific · not individual strikes\nColor: strikes/km²/min ×10³' : product === 'clouds' ? '60°S–60°N · typically 2–3 h delayed' : 'North America · infrared imagery'}${outside ? '\nMap center is outside source coverage' : ''}${motion?.matches ? (clock ? '\nReduced motion · history playback unavailable' : '\nReduced motion · manual history available') : ''}`,
+          : `${radar ? (product === 'radar-global' ? 'RAINVIEWER / BMKG RADAR · 10 min' : 'RADAR REFLECTIVITY · dBZ') : lightning ? 'LIGHTNING DENSITY · 15 min accumulation' : product === 'clouds-himawari' ? 'HIMAWARI-9 INFRARED · 10 min' : product === 'clouds' ? 'GLOBAL INFRARED · hourly' : 'GOES INFRARED · ~5 min'}\n${time ? `${followLatest ? 'Latest observation' : 'History'}: ${utc(time)}\n${lag}${current && !followLatest ? ` · frame ${index + 1}/${times.length}` : ''}${loading ? ' · loading' : ''}` : `Observation: unavailable${loading ? ' · loading' : ''}`}${missing ? `\n${missing}` : ''}${manifest?.stale ? '\nSTALE · cached source metadata' : ''}${error || diagnostic?.error ? '\n' + (error || diagnostic.error) : ''}\n${radar ? (product === 'radar-global' ? 'Indonesia & Global composite · clear sky = transparent' : 'Contiguous US · gaps ≠ no rain') : lightning ? 'Americas + Pacific · not individual strikes\nColor: strikes/km²/min ×10³' : product === 'clouds-himawari' ? 'Indonesia & Asia-Pacific · clean infrared' : product === 'clouds' ? '60°S–60°N · typically 2–3 h delayed' : 'North America · infrared imagery'}${outside ? '\nMap center is outside source coverage' : ''}${motion?.matches ? (clock ? '\nReduced motion · history playback unavailable' : '\nReduced motion · manual history available') : ''}`,
         infoTitle: lightning
-          ? 'NOAA/NWS 15-minute lightning density derived from Vaisala NLDN/GLD360. Coverage 110°E across the Pacific/Americas to 0°, 25°S–80°N. Not a live strike count, global coverage or a safety warning.'
+          ? 'NOAA/NWS 15-minute lightning density derived from Vaisala NLDN/GLD360. Coverage 95°E across the Pacific/Americas to 0°, 25°S–80°N. Not a live strike count, global coverage or a safety warning.'
           : radar
-            ? 'NOAA MRMS radar echoes indicate precipitation patterns, not rain rate, a storm warning or a future forecast. Native source approximately 1 km; display is limited to level 6. Frames use exact advertised observation times.'
-            : 'GOES-19/18 longwave infrared Band 14 regional; NESDIS global longwave mosaic. Clouds only dims everything but bright, cold cloud tops; a brightness filter, not a cloud mask. Coverage and freshness differ by region.',
+            ? product === 'radar-global'
+              ? 'RainViewer & BMKG composite Doppler radar echoes indicate active precipitation patterns across Indonesia and worldwide. In clear or non-raining conditions, reflectivity is zero and the layer is transparent.'
+              : 'NOAA MRMS radar echoes indicate precipitation patterns, not rain rate, a storm warning or a future forecast. Native source approximately 1 km; display is limited to level 6. Frames use exact advertised observation times.'
+            : product === 'clouds-himawari'
+              ? 'JMA Himawari-9 AHI Band 13 clean longwave infrared cloud patterns covering Indonesia and the Western Pacific via NASA GIBS. 10-minute cadence.'
+              : 'GOES-19/18 longwave infrared Band 14 regional; NESDIS global longwave mosaic. Clouds only dims everything but bright, cold cloud tops; a brightness filter, not a cloud mask. Coverage and freshness differ by region.',
       };
       controls.summary.settings = [
         ...(satellite || (radar && enableIndonesia)
@@ -739,7 +753,13 @@ export function createWeatherLayer({
         loading,
         error: error || rendering?.getDiagnostics().error || null,
         stale: Boolean(manifest?.stale || observationDelayed()),
-        source: 'NOAA nowCOAST',
+        source:
+          manifest?.source ||
+          (product === 'radar-global'
+            ? 'RainViewer · BMKG'
+            : product === 'clouds-himawari'
+              ? 'JMA Himawari-9 · NASA GIBS'
+              : 'NOAA nowCOAST'),
         observedAt: shownTime(),
       };
     },

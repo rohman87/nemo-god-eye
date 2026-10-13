@@ -315,6 +315,13 @@ const OPTION_GROUPS = Object.freeze({
       light: 'l',
       strong: 's',
     }),
+    enumOption(
+      'product',
+      'p',
+      'radar-global',
+      ['radar', 'radar-global'],
+      { radar: 'c', 'radar-global': 'g' },
+    ),
   ]),
   'weather-satellite': Object.freeze([
     enumOption('infrared', 'i', 'filtered', ['filtered', 'full'], {
@@ -328,9 +335,9 @@ const OPTION_GROUPS = Object.freeze({
     enumOption(
       'product',
       'p',
-      'clouds-regional',
-      ['clouds', 'clouds-regional'],
-      { clouds: 'g', 'clouds-regional': 'r' },
+      'clouds-himawari',
+      ['clouds', 'clouds-regional', 'clouds-himawari'],
+      { clouds: 'g', 'clouds-regional': 'r', 'clouds-himawari': 'h' },
     ),
   ]),
   wind: Object.freeze([
