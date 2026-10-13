@@ -4,6 +4,7 @@ import {
   MAX_AUTO_HOP_SEC,
   DEFAULT_CAMERA_CALIBRATION,
   CALIBRATION_RANGE_FLOOR_M,
+  DEFAULT_ENABLED_CCTV_PACKS,
 } from './policy.js';
 
 export function createControls({ state: layerState, services, parts, source }) {
@@ -164,6 +165,23 @@ export function createControls({ state: layerState, services, parts, source }) {
           layerState._activeCameraId,
           Number(params.focusDurationSec) || 1.8,
         );
+      }
+      if (params.resetDefaultPacks) {
+        layerState._packsCustomizedByUser = false;
+        const disabled = new Set();
+        for (const record of layerState._records) {
+          const pack = record.camera.pack || 'other';
+          if (!DEFAULT_ENABLED_CCTV_PACKS.includes(pack)) {
+            disabled.add(pack);
+          }
+        }
+        layerState._disabledPacks = disabled;
+        parts.rendering.refreshCoverageStyles();
+        parts.rendering.refreshHorizonCulling();
+        const active = parts.selection.getActiveRecord();
+        if (active && layerState._disabledPacks.has(active.camera.pack)) {
+          parts.selection.deactivateActiveCamera();
+        }
       }
       if (Array.isArray(params.disabledPacks)) {
         layerState._packsCustomizedByUser = true;

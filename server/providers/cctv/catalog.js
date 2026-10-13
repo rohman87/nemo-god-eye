@@ -21,6 +21,8 @@ import {
   loadVegvesenSourcesFromOpenData,
   loadJakartaSourcesFromOpenData,
   loadWestJavaSourcesFromOpenData,
+  loadDepokSourcesFromOpenData,
+  loadBogorSourcesFromOpenData,
 } from './sources.js';
 
 /** Env kill switch: unset or anything but "0" means enabled. */
@@ -109,6 +111,16 @@ const LIVE_PACKS = [
     name: 'westjava',
     enabled: () => envEnabled('CCTV_WESTJAVA_ENABLED'),
     load: loadWestJavaSourcesFromOpenData,
+  },
+  {
+    name: 'depok',
+    enabled: () => envEnabled('CCTV_DEPOK_ENABLED'),
+    load: loadDepokSourcesFromOpenData,
+  },
+  {
+    name: 'bogor',
+    enabled: () => envEnabled('CCTV_BOGOR_ENABLED'),
+    load: loadBogorSourcesFromOpenData,
   },
 ];
 /**

@@ -314,7 +314,13 @@ test('provider packs quick enable all and disable all buttons', (t) => {
   t.after(() => controls.destroy());
 
   controls._cctvState = {
-    packs: [{ id: 'jakarta' }, { id: 'westjava' }, { id: 'austin' }],
+    packs: [
+      { id: 'jakarta' },
+      { id: 'westjava' },
+      { id: 'depok' },
+      { id: 'bogor' },
+      { id: 'austin' },
+    ],
   };
 
   allBtn.dispatchEvent(new Event('click'));
@@ -323,9 +329,12 @@ test('provider packs quick enable all and disable all buttons', (t) => {
 
   assert.deepEqual(calls[0].params, { disabledPacks: [] });
   assert.deepEqual(calls[1].params, {
-    disabledPacks: ['jakarta', 'westjava', 'austin'],
+    disabledPacks: ['jakarta', 'westjava', 'depok', 'bogor', 'austin'],
   });
-  assert.deepEqual(calls[2].params, { disabledPacks: ['austin'] });
+  assert.deepEqual(calls[2].params, {
+    resetDefaultPacks: true,
+    disabledPacks: ['austin'],
+  });
 });
 
 test('fullscreen prev/next buttons and arrow keys cycle cameras', async (t) => {

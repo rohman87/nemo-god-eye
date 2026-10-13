@@ -6,6 +6,8 @@ import path from 'node:path';
 import {
   loadJakartaSourcesFromOpenData,
   loadWestJavaSourcesFromOpenData,
+  loadDepokSourcesFromOpenData,
+  loadBogorSourcesFromOpenData,
 } from '../../server/providers/cctv/sources.js';
 import { createCctvCatalog } from '../../server/providers/cctv/catalog.js';
 import { CITY_POIS } from '../locations.js';
@@ -75,11 +77,11 @@ test('West Java loader registers Bandung city and regional cameras', async (t) =
 
   for (const camera of cameras) {
     assert.ok(
-      camera.city === 'Bandung' || camera.city === 'West Java' || camera.city === 'Depok',
+      camera.city === 'Bandung' || camera.city === 'West Java',
       `Unexpected city: ${camera.city}`,
     );
     assert.ok(
-      camera.cityId === 'bandung' || camera.cityId === 'westjava' || camera.cityId === 'depok',
+      camera.cityId === 'bandung' || camera.cityId === 'westjava',
       `Unexpected cityId: ${camera.cityId}`,
     );
     assert.equal(camera.feedType, 'hls');
@@ -98,16 +100,73 @@ test('West Java loader registers Bandung city and regional cameras', async (t) =
   assert.ok(ids.has('bandung-braga-1'), 'Braga 01 should be registered');
   assert.ok(ids.has('bandung-cibeureum'), 'Cibeureum should be registered');
   assert.ok(ids.has('westjava-cct-jatikarya'), 'GT Jatikarya should be registered');
-  assert.ok(ids.has('depok-dishub-margo-city-1'), 'Depok Margo City should be registered');
 });
 
-test('Catalog integration includes Jakarta and West Java packs in merge order', async (t) => {
+test('Depok loader registers Depok municipal traffic cameras', (t) => {
+  t.mock.method(console, 'log', () => {});
+  const cameras = loadDepokSourcesFromOpenData();
+  assert.ok(cameras.length >= 10, 'Expected at least 10 Depok cameras');
+
+  for (const camera of cameras) {
+    assert.equal(camera.city, 'Depok');
+    assert.equal(camera.cityId, 'depok');
+    assert.equal(camera.pack, 'depok');
+    assert.equal(camera.feedType, 'hls');
+    assert.ok(
+      camera.lat >= -6.55 && camera.lat <= -6.30,
+      `Latitude out of bounds: ${camera.lat}`,
+    );
+    assert.ok(
+      camera.lon >= 106.70 && camera.lon <= 106.95,
+      `Longitude out of bounds: ${camera.lon}`,
+    );
+    assert.ok(camera.url.includes('.m3u8'), `URL must be HLS: ${camera.url}`);
+  }
+
+  const ids = new Set(cameras.map((c) => c.id));
+  assert.ok(ids.has('depok-dishub-margo-city-1'), 'Margo City should be registered');
+  assert.ok(ids.has('depok-dishub-balai-kota'), 'Balai Kota Depok should be registered');
+  assert.ok(ids.has('depok-dishub-dewi-sartika'), 'Dewi Sartika should be registered');
+});
+
+test('Bogor loader registers Bogor municipal traffic cameras (BSW)', (t) => {
+  t.mock.method(console, 'log', () => {});
+  const cameras = loadBogorSourcesFromOpenData();
+  assert.ok(cameras.length >= 10, 'Expected at least 10 Bogor cameras');
+
+  for (const camera of cameras) {
+    assert.equal(camera.city, 'Bogor');
+    assert.equal(camera.cityId, 'bogor');
+    assert.equal(camera.pack, 'bogor');
+    assert.equal(camera.feedType, 'hls');
+    assert.ok(
+      camera.lat >= -6.75 && camera.lat <= -6.45,
+      `Latitude out of bounds: ${camera.lat}`,
+    );
+    assert.ok(
+      camera.lon >= 106.70 && camera.lon <= 106.90,
+      `Longitude out of bounds: ${camera.lon}`,
+    );
+    assert.ok(camera.url.includes('.m3u8'), `URL must be HLS: ${camera.url}`);
+  }
+
+  const ids = new Set(cameras.map((c) => c.id));
+  assert.ok(ids.has('bogor-bsw-79'), 'Tugu Kujang should be registered');
+  assert.ok(ids.has('bogor-bsw-82'), 'Alun-Alun Bogor should be registered');
+  assert.ok(ids.has('bogor-bsw-134'), 'Balai Kota Bogor should be registered');
+});
+
+test('Catalog integration includes Indonesian packs in merge order', async (t) => {
   t.mock.method(console, 'log', () => {});
   const priorJakarta = process.env.CCTV_JAKARTA_ENABLED;
   const priorWestJava = process.env.CCTV_WESTJAVA_ENABLED;
+  const priorDepok = process.env.CCTV_DEPOK_ENABLED;
+  const priorBogor = process.env.CCTV_BOGOR_ENABLED;
   try {
     process.env.CCTV_JAKARTA_ENABLED = '1';
     process.env.CCTV_WESTJAVA_ENABLED = '1';
+    process.env.CCTV_DEPOK_ENABLED = '1';
+    process.env.CCTV_BOGOR_ENABLED = '1';
 
     const getCctvSources = createCctvCatalog({ sourceRoot: process.cwd() });
     const sources = await getCctvSources();
@@ -119,11 +178,21 @@ test('Catalog integration includes Jakarta and West Java packs in merge order', 
       (s) => s.cityId === 'bandung' || s.cityId === 'westjava',
     );
     assert.ok(westjava.length > 0, 'West Java sources must be present in catalog');
+
+    const depok = sources.filter((s) => s.cityId === 'depok');
+    assert.ok(depok.length > 0, 'Depok sources must be present in catalog');
+
+    const bogor = sources.filter((s) => s.cityId === 'bogor');
+    assert.ok(bogor.length > 0, 'Bogor sources must be present in catalog');
   } finally {
     if (priorJakarta === undefined) delete process.env.CCTV_JAKARTA_ENABLED;
     else process.env.CCTV_JAKARTA_ENABLED = priorJakarta;
     if (priorWestJava === undefined) delete process.env.CCTV_WESTJAVA_ENABLED;
     else process.env.CCTV_WESTJAVA_ENABLED = priorWestJava;
+    if (priorDepok === undefined) delete process.env.CCTV_DEPOK_ENABLED;
+    else process.env.CCTV_DEPOK_ENABLED = priorDepok;
+    if (priorBogor === undefined) delete process.env.CCTV_BOGOR_ENABLED;
+    else process.env.CCTV_BOGOR_ENABLED = priorBogor;
   }
 });
 

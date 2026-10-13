@@ -210,15 +210,36 @@ export const JAKARTA_CENTER = { lat: -6.2088, lon: 106.8456 };
 export const DEFAULT_WESTJAVA_SOURCE_FILE = 'config/cctv_sources.westjava.json';
 export const DEFAULT_WESTJAVA_MAX_SOURCES = 450;
 export const BANDUNG_CENTER = { lat: -6.9175, lon: 107.6191 };
-export const DEPOK_CENTER = { lat: -6.3944, lon: 106.8231 };
 export const WESTJAVA_ANCHORS = [
   BANDUNG_CENTER,
-  DEPOK_CENTER,
-  { lat: -6.382, lon: 106.918 },
-  { lat: -6.5971, lon: 106.806 },
+  { lat: -6.9025, lon: 107.6186 }, // Gedung Sate
+  { lat: -6.382, lon: 106.918 },   // Cimanggis-Cibitung
 ];
 export const PELINDUNG_BANDUNG_API =
   'https://pelindung.bandung.go.id:8443/api/cek';
+
+/** Depok City (Indonesia) CCTV: Dishub Kota Depok municipal traffic cameras. */
+export const DEFAULT_DEPOK_SOURCE_FILE = 'config/cctv_sources.depok.json';
+export const DEFAULT_DEPOK_MAX_SOURCES = 120;
+export const DEPOK_CENTER = { lat: -6.3944, lon: 106.8231 };
+export const DEPOK_ANCHORS = [
+  DEPOK_CENTER,
+  { lat: -6.3725, lon: 106.8325 }, // Margonda Raya
+  { lat: -6.4025, lon: 106.8185 }, // Balaikota Depok
+  { lat: -6.3985, lon: 106.822 },  // Underpass Dewi Sartika
+];
+
+/** Bogor City (Indonesia) CCTV: Diskominfo Kota Bogor (BSW) municipal traffic cameras. */
+export const DEFAULT_BOGOR_SOURCE_FILE = 'config/cctv_sources.bogor.json';
+export const DEFAULT_BOGOR_MAX_SOURCES = 200;
+export const BOGOR_CENTER = { lat: -6.595, lon: 106.797 };
+export const BOGOR_ANCHORS = [
+  BOGOR_CENTER,
+  { lat: -6.60156, lon: 106.80492 }, // Tugu Kujang
+  { lat: -6.59604, lon: 106.79155 }, // Alun-Alun Bogor
+  { lat: -6.59472, lon: 106.79375 }, // Balai Kota Bogor
+  { lat: -6.5575, lon: 106.776 },    // Simpang Yasmin
+];
 
 /** Live Traffic NSW (Transport for NSW): keyless public camera catalog. */
 export const NSW_CAMERAS_URL =

@@ -53,6 +53,14 @@ import {
   BANDUNG_CENTER,
   WESTJAVA_ANCHORS,
   PELINDUNG_BANDUNG_API,
+  DEFAULT_DEPOK_SOURCE_FILE,
+  DEFAULT_DEPOK_MAX_SOURCES,
+  DEPOK_CENTER,
+  DEPOK_ANCHORS,
+  DEFAULT_BOGOR_SOURCE_FILE,
+  DEFAULT_BOGOR_MAX_SOURCES,
+  BOGOR_CENTER,
+  BOGOR_ANCHORS,
   NSW_CAMERAS_URL,
   NSW_IMAGE_ORIGIN,
   DEFAULT_NSW_MAX_SOURCES,
@@ -2129,6 +2137,220 @@ export async function loadWestJavaSourcesFromOpenData({
   const prioritized = prioritizeSources(unique, maxCount, WESTJAVA_ANCHORS);
   console.log(
     `[CCTV] Loaded West Java camera sources: ${unique.length} (using nearest ${prioritized.length})`,
+  );
+  return prioritized;
+}
+
+/**
+ * Load Depok City CCTV cameras from curated catalog file (Dinas Perhubungan Kota Depok).
+ *
+ * @param {object} [options]
+ * @param {string} [options.sourceRoot=process.cwd()] - Root directory for resolving relative paths.
+ * @returns {Array<object>} Normalized camera source objects.
+ */
+export function loadDepokSourcesFromOpenData({
+  sourceRoot = process.cwd(),
+} = {}) {
+  const sourceFile =
+    process.env.CCTV_DEPOK_SOURCES_FILE || DEFAULT_DEPOK_SOURCE_FILE;
+  const resolved = path.isAbsolute(sourceFile)
+    ? sourceFile
+    : path.resolve(sourceRoot, sourceFile);
+
+  let rawList = [];
+  try {
+    if (!fs.existsSync(resolved)) return [];
+    const content = fs.readFileSync(resolved, 'utf8');
+    const parsed = JSON.parse(content);
+    if (Array.isArray(parsed)) rawList = parsed;
+  } catch (err) {
+    console.warn('[CCTV] Depok source file read error:', err?.message || err);
+    return [];
+  }
+
+  const cameras = [];
+  for (const item of rawList) {
+    if (!item || typeof item !== 'object') continue;
+    const cameraId = String(item.id || '').trim();
+    if (!cameraId) continue;
+
+    const lat = toFiniteNumber(item.lat, NaN);
+    const lon = toFiniteNumber(item.lon, NaN);
+    if (!isPlausibleLatLon(lat, lon)) continue;
+
+    // Depok coordinate sanity bounds
+    if (lat < -6.55 || lat > -6.30 || lon < 106.70 || lon > 106.95) continue;
+
+    const streamUrl =
+      typeof item.url === 'string'
+        ? item.url.trim()
+        : typeof item.snapshotUrl === 'string'
+          ? item.snapshotUrl.trim()
+          : '';
+    if (!streamUrl) continue;
+
+    const extractedHeading = toFiniteNumber(item.headingDeg, NaN);
+    const hasHeading = Number.isFinite(extractedHeading);
+    const headingDeg = hasHeading
+      ? ((extractedHeading % 360) + 360) % 360
+      : fallbackHeadingFromId(cameraId);
+    const headingConfidence = hasHeading
+      ? String(item.headingConfidence || '').toLowerCase() === 'low'
+        ? 'low'
+        : 'high'
+      : 'low';
+
+    cameras.push({
+      id: cameraId,
+      name: String(item.name || cameraId).trim(),
+      city: 'Depok',
+      cityId: 'depok',
+      pack: 'depok',
+      provider: String(item.provider || 'Dinas Perhubungan Kota Depok'),
+      lat,
+      lon,
+      headingDeg,
+      headingConfidence,
+      pitchDeg: toFiniteNumber(item.pitchDeg, -18),
+      fovDeg: toFiniteNumber(item.fovDeg, 72),
+      rangeM: toFiniteNumber(item.rangeM, 480),
+      mountHeightM: toFiniteNumber(item.mountHeightM, 18),
+      groundElevationM: toFiniteNumber(item.groundElevationM, 75),
+      feedType: normalizeFeedType(item.feedType || 'hls'),
+      url: streamUrl,
+      snapshotUrl:
+        typeof item.snapshotUrl === 'string'
+          ? item.snapshotUrl.trim()
+          : streamUrl,
+      sourceKind: String(item.sourceKind || 'municipal-webcam'),
+      license: String(
+        item.license ||
+          'Public municipal traffic camera — Dinas Perhubungan Kota Depok',
+      ),
+      poseSource: item.poseSource || 'curated',
+    });
+  }
+
+  const unique = Array.from(
+    new Map(cameras.map((camera) => [camera.id, camera])).values(),
+  );
+  const maxRaw = Number(
+    process.env.CCTV_DEPOK_MAX_SOURCES || DEFAULT_DEPOK_MAX_SOURCES,
+  );
+  const maxCount = Number.isFinite(maxRaw)
+    ? Math.max(8, Math.min(300, Math.floor(maxRaw)))
+    : DEFAULT_DEPOK_MAX_SOURCES;
+  const prioritized = prioritizeSources(unique, maxCount, DEPOK_ANCHORS);
+  console.log(
+    `[CCTV] Loaded Depok camera sources: ${unique.length} (using nearest ${prioritized.length})`,
+  );
+  return prioritized;
+}
+
+/**
+ * Load Bogor City CCTV cameras from curated catalog file (Diskominfo Kota Bogor / BSW).
+ *
+ * @param {object} [options]
+ * @param {string} [options.sourceRoot=process.cwd()] - Root directory for resolving relative paths.
+ * @returns {Array<object>} Normalized camera source objects.
+ */
+export function loadBogorSourcesFromOpenData({
+  sourceRoot = process.cwd(),
+} = {}) {
+  const sourceFile =
+    process.env.CCTV_BOGOR_SOURCES_FILE || DEFAULT_BOGOR_SOURCE_FILE;
+  const resolved = path.isAbsolute(sourceFile)
+    ? sourceFile
+    : path.resolve(sourceRoot, sourceFile);
+
+  let rawList = [];
+  try {
+    if (!fs.existsSync(resolved)) return [];
+    const content = fs.readFileSync(resolved, 'utf8');
+    const parsed = JSON.parse(content);
+    if (Array.isArray(parsed)) rawList = parsed;
+  } catch (err) {
+    console.warn('[CCTV] Bogor source file read error:', err?.message || err);
+    return [];
+  }
+
+  const cameras = [];
+  for (const item of rawList) {
+    if (!item || typeof item !== 'object') continue;
+    const cameraId = String(item.id || '').trim();
+    if (!cameraId) continue;
+
+    const lat = toFiniteNumber(item.lat, NaN);
+    const lon = toFiniteNumber(item.lon, NaN);
+    if (!isPlausibleLatLon(lat, lon)) continue;
+
+    // Bogor coordinate sanity bounds
+    if (lat < -6.75 || lat > -6.45 || lon < 106.70 || lon > 106.90) continue;
+
+    const streamUrl =
+      typeof item.url === 'string'
+        ? item.url.trim()
+        : typeof item.snapshotUrl === 'string'
+          ? item.snapshotUrl.trim()
+          : '';
+    if (!streamUrl) continue;
+
+    const extractedHeading = toFiniteNumber(item.headingDeg, NaN);
+    const hasHeading = Number.isFinite(extractedHeading);
+    const headingDeg = hasHeading
+      ? ((extractedHeading % 360) + 360) % 360
+      : fallbackHeadingFromId(cameraId);
+    const headingConfidence = hasHeading
+      ? String(item.headingConfidence || '').toLowerCase() === 'low'
+        ? 'low'
+        : 'high'
+      : 'low';
+
+    cameras.push({
+      id: cameraId,
+      name: String(item.name || cameraId).trim(),
+      city: 'Bogor',
+      cityId: 'bogor',
+      pack: 'bogor',
+      provider: String(
+        item.provider || 'Pemerintah Kota Bogor (Diskominfo)',
+      ),
+      lat,
+      lon,
+      headingDeg,
+      headingConfidence,
+      pitchDeg: toFiniteNumber(item.pitchDeg, -18),
+      fovDeg: toFiniteNumber(item.fovDeg, 72),
+      rangeM: toFiniteNumber(item.rangeM, 450),
+      mountHeightM: toFiniteNumber(item.mountHeightM, 18),
+      groundElevationM: toFiniteNumber(item.groundElevationM, 265),
+      feedType: normalizeFeedType(item.feedType || 'hls'),
+      url: streamUrl,
+      snapshotUrl:
+        typeof item.snapshotUrl === 'string'
+          ? item.snapshotUrl.trim()
+          : streamUrl,
+      sourceKind: String(item.sourceKind || 'municipal-webcam'),
+      license: String(
+        item.license ||
+          'Public municipal traffic camera — Diskominfo Kota Bogor (BSW)',
+      ),
+      poseSource: item.poseSource || 'curated',
+    });
+  }
+
+  const unique = Array.from(
+    new Map(cameras.map((camera) => [camera.id, camera])).values(),
+  );
+  const maxRaw = Number(
+    process.env.CCTV_BOGOR_MAX_SOURCES || DEFAULT_BOGOR_MAX_SOURCES,
+  );
+  const maxCount = Number.isFinite(maxRaw)
+    ? Math.max(8, Math.min(300, Math.floor(maxRaw)))
+    : DEFAULT_BOGOR_MAX_SOURCES;
+  const prioritized = prioritizeSources(unique, maxCount, BOGOR_ANCHORS);
+  console.log(
+    `[CCTV] Loaded Bogor camera sources: ${unique.length} (using nearest ${prioritized.length})`,
   );
   return prioritized;
 }

@@ -4,11 +4,16 @@ import * as Cesium from 'cesium';
 import { DEFAULT_ENABLED_CCTV_PACKS } from './policy.js';
 import { createCctvLayer } from './index.js';
 
-test('DEFAULT_ENABLED_CCTV_PACKS contains jakarta and westjava only', () => {
-  assert.deepEqual(Array.from(DEFAULT_ENABLED_CCTV_PACKS), ['jakarta', 'westjava']);
+test('DEFAULT_ENABLED_CCTV_PACKS contains jakarta, westjava, depok, and bogor', () => {
+  assert.deepEqual(Array.from(DEFAULT_ENABLED_CCTV_PACKS), [
+    'jakarta',
+    'westjava',
+    'depok',
+    'bogor',
+  ]);
 });
 
-test('cctvLayer enables jakarta and westjava by default and disables other providers', async (t) => {
+test('cctvLayer enables default Indonesian packs and disables other providers', async (t) => {
   const originalDoc = globalThis.document;
   const docListeners = new Map();
   globalThis.document = {
@@ -92,7 +97,9 @@ test('cctvLayer enables jakarta and westjava by default and disables other provi
     { id: 'cam-austin-1', name: 'Austin Cam 1', pack: 'austin', cityId: 'austin', city: 'Austin', lat: 30.2, lon: -97.7 },
     { id: 'cam-caltrans-1', name: 'California Cam 1', pack: 'caltrans', cityId: 'sf', city: 'SF', lat: 37.7, lon: -122.4 },
     { id: 'cam-jkt-1', name: 'Jakarta Monas', pack: 'jakarta', cityId: 'jakarta', city: 'Jakarta', lat: -6.17, lon: 106.82 },
-    { id: 'cam-westjava-1', name: 'Depok Margonda', pack: 'westjava', cityId: 'westjava', city: 'Depok', lat: -6.37, lon: 106.83 },
+    { id: 'cam-westjava-1', name: 'Bandung Braga', pack: 'westjava', cityId: 'bandung', city: 'Bandung', lat: -6.91, lon: 107.61 },
+    { id: 'cam-depok-1', name: 'Depok Margonda', pack: 'depok', cityId: 'depok', city: 'Depok', lat: -6.37, lon: 106.83 },
+    { id: 'cam-bogor-1', name: 'Bogor Tugu Kujang', pack: 'bogor', cityId: 'bogor', city: 'Bogor', lat: -6.60, lon: 106.80 },
   ];
 
   const source = {
@@ -129,15 +136,19 @@ test('cctvLayer enables jakarta and westjava by default and disables other provi
   const layer = createCctvLayer({ services, source });
   await layer.init(fakeViewer);
 
-  // Before explicit toggle, only jakarta and westjava should be active
+  // Before explicit toggle, only default packs should be active
   let ui = layer.getUIState();
   const jakartaPack = ui.packs.find((p) => p.id === 'jakarta');
   const westjavaPack = ui.packs.find((p) => p.id === 'westjava');
+  const depokPack = ui.packs.find((p) => p.id === 'depok');
+  const bogorPack = ui.packs.find((p) => p.id === 'bogor');
   const austinPack = ui.packs.find((p) => p.id === 'austin');
   const caltransPack = ui.packs.find((p) => p.id === 'caltrans');
 
   assert.ok(jakartaPack?.active, 'Jakarta pack must be enabled by default');
   assert.ok(westjavaPack?.active, 'West Java pack must be enabled by default');
+  assert.ok(depokPack?.active, 'Depok pack must be enabled by default');
+  assert.ok(bogorPack?.active, 'Bogor pack must be enabled by default');
   assert.equal(austinPack?.active, false, 'Austin pack must be disabled by default');
   assert.equal(caltransPack?.active, false, 'California pack must be disabled by default');
 
@@ -145,12 +156,15 @@ test('cctvLayer enables jakarta and westjava by default and disables other provi
   const cameraIds = ui.cameras.map((c) => c.id);
   assert.ok(cameraIds.includes('cam-jkt-1'), 'Jakarta camera must be in visible list');
   assert.ok(cameraIds.includes('cam-westjava-1'), 'West Java camera must be in visible list');
+  assert.ok(cameraIds.includes('cam-depok-1'), 'Depok camera must be in visible list');
+  assert.ok(cameraIds.includes('cam-bogor-1'), 'Bogor camera must be in visible list');
   assert.ok(!cameraIds.includes('cam-austin-1'), 'Austin camera must not be in visible list');
   assert.ok(!cameraIds.includes('cam-caltrans-1'), 'California camera must not be in visible list');
 
   // Active camera should be from an enabled pack
+  const defaultPackIds = new Set(['cam-jkt-1', 'cam-westjava-1', 'cam-depok-1', 'cam-bogor-1']);
   assert.ok(
-    ui.activeCameraId === 'cam-jkt-1' || ui.activeCameraId === 'cam-westjava-1',
+    defaultPackIds.has(ui.activeCameraId),
     `Active camera should be from enabled pack: ${ui.activeCameraId}`,
   );
 
@@ -158,7 +172,7 @@ test('cctvLayer enables jakarta and westjava by default and disables other provi
   layer.enable();
   ui = layer.getUIState();
   assert.ok(
-    ui.activeCameraId === 'cam-jkt-1' || ui.activeCameraId === 'cam-westjava-1',
+    defaultPackIds.has(ui.activeCameraId),
     'Active camera after enable must be from enabled pack',
   );
 
@@ -173,7 +187,15 @@ test('cctvLayer enables jakarta and westjava by default and disables other provi
   layer.setParams({ disabledPacks: [] });
   ui = layer.getUIState();
   assert.ok(ui.packs.every((p) => p.active), 'All packs should be enabled');
-  assert.equal(ui.cameras.length, 4, 'All 4 cameras should be visible');
+  assert.equal(ui.cameras.length, 6, 'All 6 cameras should be visible');
+
+  // User resets to Default
+  layer.setParams({ resetDefaultPacks: true });
+  ui = layer.getUIState();
+  assert.ok(ui.packs.find((p) => p.id === 'jakarta')?.active);
+  assert.ok(ui.packs.find((p) => p.id === 'depok')?.active);
+  assert.ok(ui.packs.find((p) => p.id === 'bogor')?.active);
+  assert.equal(ui.packs.find((p) => p.id === 'austin')?.active, false);
 
   layer.disable();
   layer.destroy();

@@ -539,11 +539,15 @@ export const HOVER_RELEASE_MS = 1_000;
 export const DEFAULT_ENABLED_CCTV_PACKS = Object.freeze([
   'jakarta',
   'westjava',
+  'depok',
+  'bogor',
 ]);
 
 export const CCTV_PACK_LABELS = Object.freeze({
   jakarta: 'JAKARTA',
   westjava: 'WEST JAVA',
+  depok: 'DEPOK',
+  bogor: 'BOGOR',
   austin: 'AUSTIN',
   caltrans: 'CALIFORNIA',
   tfl: 'LONDON (TFL)',
@@ -566,6 +570,8 @@ export const CCTV_PACK_LABELS = Object.freeze({
 export const CCTV_PACK_COLORS = Object.freeze({
   jakarta: '#00f0ff',
   westjava: '#00ff88',
+  depok: '#38bdf8',
+  bogor: '#a3e635',
   austin: '#ffb300',
   caltrans: '#ff3366',
   tfl: '#a855f7',

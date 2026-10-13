@@ -191,10 +191,14 @@ export function _initCctvPanel() {
 
   this.listen(this._cctvPacksDefaultBtn, 'click', () => {
     const packs = this._cctvState?.packs || [];
+    const defaults = ['jakarta', 'westjava', 'depok', 'bogor'];
     const disabled = packs
       .map((p) => p.id)
-      .filter((id) => id !== 'jakarta' && id !== 'westjava');
-    this.actions.setParams?.({ disabledPacks: disabled }, { origin: 'user' });
+      .filter((id) => !defaults.includes(id));
+    this.actions.setParams?.(
+      { resetDefaultPacks: true, disabledPacks: disabled },
+      { origin: 'user' },
+    );
   });
 
   this.listen(this._cctvPacksAllBtn, 'click', () => {
