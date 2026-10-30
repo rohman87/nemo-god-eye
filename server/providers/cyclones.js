@@ -79,46 +79,21 @@ function position(coordinates) {
     throw invalid();
   return { longitude: coordinates[0], latitude: coordinates[1] };
 }
+
+// Advisory pages only: NHC text products and JTWC warning .txt files.
 function officialLink(value) {
   if (typeof value !== 'string' || value.length > 256) return null;
   try {
     const url = new URL(value);
-    const allowedOrigins = [
-      'https://www.nhc.noaa.gov',
-      'https://www.metoc.navy.mil',
-      'https://s3.amazonaws.com',
-      'http://www.bom.gov.au',
-      'https://www.bom.gov.au',
-      'https://tcwc.bmkg.go.id',
-    ];
+    if (url.username || url.password || url.search || url.hash) return null;
     if (
-      !allowedOrigins.includes(url.origin) ||
-      url.username ||
-      url.password ||
-      url.search ||
-      url.hash
-    ) {
-      if (
-        url.origin === 'https://www.nhc.noaa.gov' &&
-        !url.username &&
-        !url.password &&
-        !url.search &&
-        !url.hash &&
-        /^\/text\/[A-Z0-9]+\.shtml$/.test(url.pathname)
-      ) {
-        return url.href;
-      }
-      if (
-        allowedOrigins.slice(1).includes(url.origin) &&
-        !url.username &&
-        !url.password &&
-        !url.hash
-      ) {
-        return url.href;
-      }
-      return null;
-    }
-    return url.href;
+      (url.origin === 'https://www.nhc.noaa.gov' &&
+        /^\/text\/[A-Z0-9]+\.shtml$/.test(url.pathname)) ||
+      (url.origin === 'https://www.metoc.navy.mil' &&
+        /^\/jtwc\/products\/[A-Za-z0-9_.-]+\.txt$/.test(url.pathname))
+    )
+      return url.href;
+    return null;
   } catch {
     return null;
   }
@@ -288,31 +263,34 @@ export function attachCycloneGeometry(storms, collections) {
 export function parseJtwcFeed(rssText, now = Date.now()) {
   const storms = [];
   if (typeof rssText !== 'string' || rssText.length > 512 * 1024) return storms;
-  const items = [...rssText.matchAll(/<item>([\s\S]*?)<\/item>/g)].map(
-    (m) => m[1],
-  );
+  const items = [...rssText.matchAll(/<item>([\s\S]*?)<\/item>/g)]
+    .slice(0, 32)
+    .map((m) => m[1].slice(0, 8 * 1024));
   for (const item of items) {
+    if (storms.length >= 32) break;
     const descMatch = item.match(
       /<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/,
     );
     const content = descMatch ? descMatch[1] : item;
     const matches = [
       ...content.matchAll(
-        /<b>([^<]+?)\s+(\d{1,2}[A-Z])\s*\(([^)]+)\)\s+Warning #(\d+)\s*<\/b>[\s\S]*?Issued at (\d{1,2})\/(\d{4})Z([\s\S]*?)(?:<p><b>|<\/ul>|$)/gi,
+        /<b>([^<\s][^<]{0,60}?)\s+(\d{1,2}[A-Z])\s*\(([^)]{1,60})\)\s+Warning #(\d+)\s*<\/b>[\s\S]*?Issued at (\d{1,2})\/(\d{4})Z([\s\S]*?)(?:<p><b>|<\/ul>|$)/gi,
       ),
     ];
     for (const sm of matches) {
+      if (storms.length >= 32) break;
       const rawClass = sm[1].trim();
       const code = sm[2].toUpperCase();
-      const name = sm[3].trim().slice(0, 80);
-      const advNum = sm[4].replace(/^0+/, '');
+      const name = sm[3].trim();
+      if (!/^[A-Za-z0-9 \-]{1,40}$/.test(name)) continue;
+      const advNum = sm[4].replace(/^0+/, '') || '0';
       const day = Number.parseInt(sm[5], 10);
       const timeStr = sm[6];
       const rest = sm[7];
       const linkMatch = rest.match(
         /href=['"](https:\/\/www\.metoc\.navy\.mil\/jtwc\/products\/[^'"]+\.txt)['"]/,
       );
-      const warningUrl = linkMatch ? linkMatch[1] : null;
+      const warningUrl = linkMatch ? officialLink(linkMatch[1]) : null;
 
       const num = code.slice(0, -1).padStart(2, '0');
       const basinChar = code.slice(-1);
@@ -351,19 +329,17 @@ export function parseJtwcFeed(rssText, now = Date.now()) {
               ? 'TY'
               : 'TC',
         basin,
-        position: { longitude: 146.3, latitude: 18.8 },
+        // Filled from the warning text (parseJtwcWarning); never guessed.
+        position: null,
         positionAt: issuedIso,
         advisoryNumber: advNum,
         issuedAt: issuedIso,
-        windKt: rawClass.includes('Depression')
-          ? 30
-          : rawClass.includes('Storm')
-            ? 50
-            : 75,
-        pressureHpa: 1000,
+        windKt: null,
+        pressureHpa: null,
         movement: { directionDegrees: null, speedKt: null },
         advisoryUrl: warningUrl,
-        outlookUrl: 'https://s3.amazonaws.com/www.metoc.navy.mil/jtwc/jtwc.html',
+        outlookUrl:
+          'https://s3.amazonaws.com/www.metoc.navy.mil/jtwc/jtwc.html',
         geometryStatus: 'unavailable',
         geometryAdvisoryNumber: null,
         forecastPoints: [],
@@ -373,6 +349,43 @@ export function parseJtwcFeed(rssText, now = Date.now()) {
     }
   }
   return storms;
+}
+
+/** Reads the position, intensity and motion from a JTWC warning text. */
+export function parseJtwcWarning(text) {
+  if (typeof text !== 'string') return null;
+  const body = text.slice(0, 64 * 1024);
+  const start = body.indexOf('WARNING POSITION:');
+  if (start < 0) return null;
+  const pos = body
+    .slice(start)
+    .match(/NEAR (\d{1,2}\.\d)([NS]) (\d{1,3}\.\d)([EW])/);
+  if (!pos) return null;
+  const latitude = Number(pos[1]) * (pos[2] === 'S' ? -1 : 1);
+  const longitude = Number(pos[3]) * (pos[4] === 'W' ? -1 : 1);
+  if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null;
+  const ranged = (value, min, max) =>
+    value !== undefined && Number(value) >= min && Number(value) <= max
+      ? Number(value)
+      : null;
+  const wind = body.match(/MAX SUSTAINED WINDS - (\d{2,3}) KT/);
+  const pressure = body.match(
+    /MINIMUM CENTRAL PRESSURE AT \d{6}Z IS (\d{3,4}) MB/,
+  );
+  const move = body.match(
+    /MOVEMENT PAST SIX HOURS - (\d{3}) DEGREES AT (\d{1,3}) KTS/,
+  );
+  return {
+    position: { longitude, latitude },
+    // The caller keeps the advisory issue time as the position time.
+    positionAt: null,
+    windKt: ranged(wind?.[1], 0, 300),
+    pressureHpa: ranged(pressure?.[1], 800, 1100),
+    movement: {
+      directionDegrees: ranged(move?.[1], 0, 360),
+      speedKt: ranged(move?.[2], 0, 200),
+    },
+  };
 }
 
 /** Fixed official endpoints; one shared bounded refresh, no user destinations. */
@@ -422,12 +435,52 @@ export function cycloneProxy({
             256 * 1024,
             signal,
           );
-          const jtwcStorms = parseJtwcFeed(jtwcText, now());
-          for (const storm of jtwcStorms) {
-            if (!storms.some((s) => s.id === storm.id) && storms.length < 32) {
-              storms.push(storm);
-            }
-          }
+          const fresh = parseJtwcFeed(jtwcText, now())
+            .filter(
+              (storm, index, all) =>
+                storm.advisoryUrl &&
+                !storms.some((s) => s.id === storm.id) &&
+                all.findIndex((s) => s.id === storm.id) === index,
+            )
+            .slice(0, 8);
+          const warnings = await Promise.allSettled(
+            fresh.map(async (storm) => {
+              // Defence in depth: warnings are only ever fetched from JTWC.
+              if (
+                new URL(storm.advisoryUrl).origin !==
+                'https://www.metoc.navy.mil'
+              )
+                throw new Error('jtwc_warning_origin');
+              const res = await fetchImpl(storm.advisoryUrl, {
+                signal,
+                redirect: 'error',
+              });
+              if (!res.ok) {
+                await res.body?.cancel();
+                throw new Error('jtwc_warning_unavailable');
+              }
+              return parseJtwcWarning(
+                await readResponseTextCapped(res, 64 * 1024, signal),
+              );
+            }),
+          );
+          fresh.forEach((storm, index) => {
+            const warning = warnings[index];
+            if (
+              warning.status !== 'fulfilled' ||
+              !warning.value?.position ||
+              storms.length >= 32 ||
+              storms.some((s) => s.id === storm.id)
+            )
+              return;
+            storms.push({
+              ...storm,
+              position: warning.value.position,
+              windKt: warning.value.windKt,
+              pressureHpa: warning.value.pressureHpa,
+              movement: warning.value.movement,
+            });
+          });
         }
       } catch {
         // Best-effort addition of Indo-Pacific storms
@@ -508,8 +561,7 @@ export function cycloneProxy({
     return {
       schemaVersion: 1,
       source: 'JTWC / BMKG TCWC',
-      attribution:
-        'JTWC / BMKG TCWC & NOAA NHC / CPHC',
+      attribution: 'JTWC / BMKG TCWC & NOAA NHC / CPHC',
       coverage: COVERAGE,
       fetchedAt: value?.fetchedAt ?? null,
       stale: stale || !value,

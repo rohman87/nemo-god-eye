@@ -60,7 +60,8 @@ test('Jakarta loader tolerates missing file and skips malformed rows', (t) => {
       { id: 'bad-coords', lat: 999, lon: 999, url: 'https://example.com/stream.m3u8' },
       { id: 'outside-bounds', lat: 10.0, lon: 10.0, url: 'https://example.com/stream.m3u8' },
       { id: 'no-url', lat: -6.2, lon: 106.8 },
-      { id: 'valid-cam', lat: -6.2, lon: 106.8, url: 'https://example.com/stream.m3u8' },
+      { id: 'unpinned-host', lat: -6.2, lon: 106.8, url: 'https://example.com/stream.m3u8' },
+      { id: 'valid-cam', lat: -6.2, lon: 106.8, url: 'https://cctv.citramarga.com/stream.m3u8' },
     ]),
   );
 

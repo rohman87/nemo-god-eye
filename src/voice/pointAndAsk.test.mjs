@@ -348,7 +348,9 @@ test('deixis prompt lint: one short rule, and every sentinel it names exists in 
   // policy once (WHERE precedence, AREAS routing, AFTER TOOLS speech) brought
   // it to 51,646. A new tool or rule has to fit under this ceiling.
   const size = instructions.length + JSON.stringify(GEV_REALTIME_TOOLS).length;
-  assert.ok(size <= 52000, `prompt size ${size}`);
+  // Fork: +~110 chars for Indonesian city ids (jakarta, bandung, depok, bogor)
+  // in the three locationId enums, so the ceiling is 52,200.
+  assert.ok(size <= 52200, `prompt size ${size}`);
 });
 
 

@@ -1051,6 +1051,14 @@ test('the voice TOOL SCHEMA matches the pinned contract — the mission mapping 
     'noir',
   ]);
   visualStyle.enum = [...visualStyle.enum, 'snow'];
+  // Fork adds Indonesian city ids (jakarta, bandung, depok, bogor) to locationId enums.
+  for (const tool of legacyTools) {
+    const location = tool.parameters.properties.locationId;
+    if (location?.enum)
+      location.enum = location.enum.filter(
+        (id) => !['jakarta', 'bandung', 'depok', 'bogor'].includes(id),
+      );
+  }
   const block = JSON.stringify(legacyTools);
   // Re-derived for the voice layer manifest (generated layer enums, alias and
   // field hints), point-and-ask's pointer/referent arguments and the prompt

@@ -254,6 +254,14 @@ test('no unchanged Realtime tool definition drifts silently', () => {
   ]);
   visualStyle.enum = [...visualStyle.enum, 'snow'];
   assert.equal(unchanged.length, 14);
+  // Fork adds Indonesian city ids (jakarta, bandung, depok, bogor) to locationId enums.
+  for (const tool of unchanged) {
+    const location = tool.parameters.properties.locationId;
+    if (location?.enum)
+      location.enum = location.enum.filter(
+        (id) => !['jakarta', 'bandung', 'depok', 'bogor'].includes(id),
+      );
+  }
   const digest = createHash('sha256')
     .update(JSON.stringify(unchanged))
     .digest('hex')

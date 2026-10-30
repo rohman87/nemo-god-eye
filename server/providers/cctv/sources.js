@@ -54,6 +54,9 @@ import {
   BANDUNG_CENTER,
   WESTJAVA_ANCHORS,
   PELINDUNG_BANDUNG_API,
+  INDONESIA_CCTV_ALLOWED_ORIGINS,
+  PELINDUNG_MAX_RESPONSE_BYTES,
+  PELINDUNG_MAX_ROWS,
   DEFAULT_DEPOK_SOURCE_FILE,
   DEFAULT_DEPOK_MAX_SOURCES,
   DEPOK_CENTER,
@@ -1150,7 +1153,7 @@ export function loadTallinnSourcesFromCatalog({
     const imageUrl = pinnedCameraUrl(
       typeof item.url === 'string'
         ? item.url
-        : typeof item.snapshotUrl === 'string'
+        : typeof item.snapshotUrl === 'string' && item.snapshotUrl.trim()
           ? item.snapshotUrl
           : '',
       TALLINN_IMAGE_ORIGIN,
@@ -1447,7 +1450,7 @@ export function loadWarendorfSourcesFromCatalog({
     const raw =
       typeof item.url === 'string'
         ? item.url
-        : typeof item.snapshotUrl === 'string'
+        : typeof item.snapshotUrl === 'string' && item.snapshotUrl.trim()
           ? item.snapshotUrl
           : '';
     const url = WARENDORF_IMAGE_ORIGINS.map((o) =>
@@ -3663,6 +3666,27 @@ export async function loadFloridaSourcesFromOpenData() {
   }
 }
 
+/** A trimmed https URL on one of the pack's allowed origins, else null. */
+function indonesiaCameraUrl(raw, pack) {
+  let url;
+  try {
+    url = new URL(String(raw ?? '').trim());
+  } catch {
+    return null;
+  }
+  if (
+    url.protocol !== 'https:' ||
+    url.username ||
+    url.password ||
+    /%2f|%5c/i.test(url.pathname)
+  ) {
+    return null;
+  }
+  return INDONESIA_CCTV_ALLOWED_ORIGINS[pack]?.includes(url.origin)
+    ? url.href
+    : null;
+}
+
 /**
  * Load Jakarta metropolitan CCTV cameras from the curated catalog file.
  *
@@ -3696,6 +3720,7 @@ export function loadJakartaSourcesFromOpenData({
     return [];
   }
 
+  let pinDropped = 0;
   const cameras = [];
   for (const item of rows) {
     if (!item || typeof item !== 'object') continue;
@@ -3710,13 +3735,18 @@ export function loadJakartaSourcesFromOpenData({
     // Jakarta metropolitan coordinate sanity bounds
     if (lat < -6.5 || lat > -5.9 || lon < 106.5 || lon > 107.2) continue;
 
-    const streamUrl =
-      typeof item.url === 'string'
-        ? item.url.trim()
-        : typeof item.snapshotUrl === 'string'
-          ? item.snapshotUrl.trim()
-          : '';
-    if (!streamUrl) continue;
+    const streamUrl = indonesiaCameraUrl(
+      typeof item.url === 'string' ? item.url : item.snapshotUrl,
+      'jakarta',
+    );
+    const snapshotUrl =
+      typeof item.snapshotUrl === 'string' && item.snapshotUrl.trim()
+        ? indonesiaCameraUrl(item.snapshotUrl, 'jakarta')
+        : streamUrl;
+    if (!streamUrl || !snapshotUrl) {
+      pinDropped += 1;
+      continue;
+    }
 
     const extractedHeading = toFiniteNumber(item.headingDeg, NaN);
     const hasHeading = Number.isFinite(extractedHeading);
@@ -3746,14 +3776,16 @@ export function loadJakartaSourcesFromOpenData({
       groundElevationM: toFiniteNumber(item.groundElevationM, 10),
       feedType: normalizeFeedType(item.feedType || 'hls'),
       url: streamUrl,
-      snapshotUrl:
-        typeof item.snapshotUrl === 'string'
-          ? item.snapshotUrl.trim()
-          : streamUrl,
+      snapshotUrl,
       sourceKind: String(item.sourceKind || 'toll-camera'),
       license: String(item.license || 'Public Jakarta Traffic Camera Data'),
       poseSource: hasHeading ? 'curated' : undefined,
     });
+  }
+  if (pinDropped > 0) {
+    console.warn(
+      `[CCTV] Jakarta: dropped ${pinDropped} camera(s) outside the allowed stream hosts`,
+    );
   }
 
   const unique = Array.from(
@@ -3785,6 +3817,7 @@ export async function loadWestJavaSourcesFromOpenData({
   sourceRoot = process.cwd(),
 } = {}) {
   const fileCameras = [];
+  let pinDropped = 0;
   const sourceFile =
     process.env.CCTV_WESTJAVA_SOURCES_FILE || DEFAULT_WESTJAVA_SOURCE_FILE;
   const resolved = path.isAbsolute(sourceFile)
@@ -3802,8 +3835,18 @@ export async function loadWestJavaSourcesFromOpenData({
           const lat = toFiniteNumber(item.lat);
           const lon = toFiniteNumber(item.lon);
           if (!isPlausibleLatLon(lat, lon)) continue;
-          const url = String(item.url || item.snapshotUrl || '').trim();
-          if (!url) continue;
+          const url = indonesiaCameraUrl(
+            item.url || item.snapshotUrl,
+            'westjava',
+          );
+          const snapshotUrl =
+            typeof item.snapshotUrl === 'string' && item.snapshotUrl.trim()
+              ? indonesiaCameraUrl(item.snapshotUrl, 'westjava')
+              : url;
+          if (!url || !snapshotUrl) {
+            pinDropped += 1;
+            continue;
+          }
 
           fileCameras.push({
             id,
@@ -3827,10 +3870,7 @@ export async function loadWestJavaSourcesFromOpenData({
             groundElevationM: toFiniteNumber(item.groundElevationM, 700),
             feedType: normalizeFeedType(item.feedType || 'hls'),
             url,
-            snapshotUrl:
-              typeof item.snapshotUrl === 'string'
-                ? item.snapshotUrl.trim()
-                : url,
+            snapshotUrl,
             sourceKind: String(item.sourceKind || 'municipal-webcam'),
             license: String(
               item.license ||
@@ -3851,14 +3891,18 @@ export async function loadWestJavaSourcesFromOpenData({
   // Probe Pelindung Kota Bandung API for live cameras
   const liveCameras = [];
   try {
+    const signal = AbortSignal.timeout(5000);
     const res = await fetch(PELINDUNG_BANDUNG_API, {
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-      signal: AbortSignal.timeout(5000),
+      redirect: 'error',
+      signal,
     });
     if (res.ok) {
-      const rows = await res.json();
+      const rows = JSON.parse(
+        await readResponseTextCapped(res, PELINDUNG_MAX_RESPONSE_BYTES, signal),
+      );
       if (Array.isArray(rows)) {
-        for (const row of rows) {
+        for (const row of rows.slice(0, PELINDUNG_MAX_ROWS)) {
           if (!row || typeof row !== 'object') continue;
           const id = `bandung-${row.id || row.cctv_name || ''}`.trim();
           const lat = parseFloat(row.lat);
@@ -3868,6 +3912,11 @@ export async function loadWestJavaSourcesFromOpenData({
           // Normalize upstream typo extension (.m3u -> .m3u8)
           if (streamUrl.endsWith('.m3u')) {
             streamUrl = `${streamUrl}8`;
+          }
+          streamUrl = indonesiaCameraUrl(streamUrl, 'westjava');
+          if (!streamUrl) {
+            pinDropped += 1;
+            continue;
           }
           if (!streamUrl.includes('.m3u8')) continue;
           // Bounds check for Bandung metro extent
@@ -3900,8 +3949,15 @@ export async function loadWestJavaSourcesFromOpenData({
         }
       }
     }
-  } catch {
+  } catch (err) {
     // Graceful offline fallback: file-based cameras will be served
+    console.warn(`[CCTV] Bandung live API unavailable: ${err?.message || err}`);
+  }
+
+  if (pinDropped > 0) {
+    console.warn(
+      `[CCTV] West Java: dropped ${pinDropped} camera(s) outside the allowed stream hosts`,
+    );
   }
 
   // Combine: live cameras first, then curated file cameras (curated entries take precedence)
@@ -3950,6 +4006,7 @@ export function loadDepokSourcesFromOpenData({
     return [];
   }
 
+  let pinDropped = 0;
   const cameras = [];
   for (const item of rawList) {
     if (!item || typeof item !== 'object') continue;
@@ -3963,13 +4020,18 @@ export function loadDepokSourcesFromOpenData({
     // Depok coordinate sanity bounds
     if (lat < -6.55 || lat > -6.3 || lon < 106.7 || lon > 106.95) continue;
 
-    const streamUrl =
-      typeof item.url === 'string'
-        ? item.url.trim()
-        : typeof item.snapshotUrl === 'string'
-          ? item.snapshotUrl.trim()
-          : '';
-    if (!streamUrl) continue;
+    const streamUrl = indonesiaCameraUrl(
+      typeof item.url === 'string' ? item.url : item.snapshotUrl,
+      'depok',
+    );
+    const snapshotUrl =
+      typeof item.snapshotUrl === 'string' && item.snapshotUrl.trim()
+        ? indonesiaCameraUrl(item.snapshotUrl, 'depok')
+        : streamUrl;
+    if (!streamUrl || !snapshotUrl) {
+      pinDropped += 1;
+      continue;
+    }
 
     const extractedHeading = toFiniteNumber(item.headingDeg, NaN);
     const hasHeading = Number.isFinite(extractedHeading);
@@ -4000,10 +4062,7 @@ export function loadDepokSourcesFromOpenData({
       groundElevationM: toFiniteNumber(item.groundElevationM, 75),
       feedType: normalizeFeedType(item.feedType || 'hls'),
       url: streamUrl,
-      snapshotUrl:
-        typeof item.snapshotUrl === 'string'
-          ? item.snapshotUrl.trim()
-          : streamUrl,
+      snapshotUrl,
       sourceKind: String(item.sourceKind || 'municipal-webcam'),
       license: String(
         item.license ||
@@ -4011,6 +4070,11 @@ export function loadDepokSourcesFromOpenData({
       ),
       poseSource: item.poseSource || 'curated',
     });
+  }
+  if (pinDropped > 0) {
+    console.warn(
+      `[CCTV] Depok: dropped ${pinDropped} camera(s) outside the allowed stream hosts`,
+    );
   }
 
   const unique = Array.from(
@@ -4056,6 +4120,7 @@ export function loadBogorSourcesFromOpenData({
     return [];
   }
 
+  let pinDropped = 0;
   const cameras = [];
   for (const item of rawList) {
     if (!item || typeof item !== 'object') continue;
@@ -4069,13 +4134,18 @@ export function loadBogorSourcesFromOpenData({
     // Bogor coordinate sanity bounds
     if (lat < -6.75 || lat > -6.45 || lon < 106.7 || lon > 106.9) continue;
 
-    const streamUrl =
-      typeof item.url === 'string'
-        ? item.url.trim()
-        : typeof item.snapshotUrl === 'string'
-          ? item.snapshotUrl.trim()
-          : '';
-    if (!streamUrl) continue;
+    const streamUrl = indonesiaCameraUrl(
+      typeof item.url === 'string' ? item.url : item.snapshotUrl,
+      'bogor',
+    );
+    const snapshotUrl =
+      typeof item.snapshotUrl === 'string' && item.snapshotUrl.trim()
+        ? indonesiaCameraUrl(item.snapshotUrl, 'bogor')
+        : streamUrl;
+    if (!streamUrl || !snapshotUrl) {
+      pinDropped += 1;
+      continue;
+    }
 
     const extractedHeading = toFiniteNumber(item.headingDeg, NaN);
     const hasHeading = Number.isFinite(extractedHeading);
@@ -4106,10 +4176,7 @@ export function loadBogorSourcesFromOpenData({
       groundElevationM: toFiniteNumber(item.groundElevationM, 265),
       feedType: normalizeFeedType(item.feedType || 'hls'),
       url: streamUrl,
-      snapshotUrl:
-        typeof item.snapshotUrl === 'string'
-          ? item.snapshotUrl.trim()
-          : streamUrl,
+      snapshotUrl,
       sourceKind: String(item.sourceKind || 'municipal-webcam'),
       license: String(
         item.license ||
@@ -4117,6 +4184,11 @@ export function loadBogorSourcesFromOpenData({
       ),
       poseSource: item.poseSource || 'curated',
     });
+  }
+  if (pinDropped > 0) {
+    console.warn(
+      `[CCTV] Bogor: dropped ${pinDropped} camera(s) outside the allowed stream hosts`,
+    );
   }
 
   const unique = Array.from(

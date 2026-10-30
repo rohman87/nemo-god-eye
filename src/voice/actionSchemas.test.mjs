@@ -32,6 +32,7 @@ test('the complete Realtime tool payload pins the manifest-generated layer relea
     .digest('hex');
   assert.equal(
     digest,
+    // Fork adds Indonesian city ids (jakarta, bandung, depok, bogor) to locationId enums.
     // Re-derived for Provider Settings and explicit Visual Presets/Scenes routing,
     // plus the deliberate direct Panel tool/target additions and voice layer manifest (generated layer enums and
     // aliases), point-and-ask (pointer sentinels, referent args) and the
@@ -47,7 +48,7 @@ test('the complete Realtime tool payload pins the manifest-generated layer relea
     // is consolidated without changing either feature's arguments.
     // Snow leaves the set_visual_style enum.
     // The Operator HUD layout leaves set_hud's layout enum.
-    'f47a7f78f13b1f79978fa524fad2618e32bd813e1a5dfd746bf35d29909fc91b',
+    '20b4b4c9a1110de939c3536d704fbe7143278fff402d0b22ab5e02fcc5f40fc4',
   );
 });
 
@@ -150,6 +151,14 @@ test('all legacy action arguments are byte-identical after removing the delibera
       if (value.enum)
         value.enum = value.enum.filter((key) => key !== 'pointer');
     }
+  }
+  // Fork adds Indonesian city ids (jakarta, bandung, depok, bogor) to locationId enums.
+  for (const tool of legacy) {
+    const location = tool.parameters.properties.locationId;
+    if (location?.enum)
+      location.enum = location.enum.filter(
+        (id) => !['jakarta', 'bandung', 'depok', 'bogor'].includes(id),
+      );
   }
   const track = legacy.find((tool) => tool.name === 'track_entity').parameters;
   delete track.anyOf;

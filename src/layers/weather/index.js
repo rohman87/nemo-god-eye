@@ -503,7 +503,9 @@ export function createWeatherLayer({
       }
       if (params.focus === true && enabled && runNavigation) {
         const b = lightning
-          ? { west: 95, south: -15, east: 145, north: 15 }
+          ? enableIndonesia
+            ? { west: 95, south: -15, east: 145, north: 15 }
+            : { west: 110, south: -25, east: 0, north: 80 }
           : radar && product === 'radar-global'
             ? { west: 95, south: -11, east: 141, north: 6 }
             : satellite && product === 'clouds-himawari'

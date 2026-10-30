@@ -236,10 +236,47 @@ export const BANDUNG_CENTER = { lat: -6.9175, lon: 107.6191 };
 export const WESTJAVA_ANCHORS = [
   BANDUNG_CENTER,
   { lat: -6.9025, lon: 107.6186 }, // Gedung Sate
-  { lat: -6.382, lon: 106.918 },   // Cimanggis-Cibitung
+  { lat: -6.382, lon: 106.918 }, // Cimanggis-Cibitung
 ];
 export const PELINDUNG_BANDUNG_API =
   'https://pelindung.bandung.go.id:8443/api/cek';
+export const PELINDUNG_MAX_RESPONSE_BYTES = 1024 * 1024;
+export const PELINDUNG_MAX_ROWS = 2000;
+
+/** Exact HTTPS origins each Indonesian pack may stream or snapshot from. */
+export const INDONESIA_CCTV_ALLOWED_ORIGINS = Object.freeze({
+  jakarta: Object.freeze([
+    'https://cctv.citramarga.com',
+    'https://camera.jtd.co.id',
+    'https://cctv.kkdm.co.id',
+    'https://cctv.ctptollways.com:2254',
+    'https://dki-jkt.balitower.co.id:7028',
+    'https://jmlive.jasamarga.com',
+    'https://cctv.cctvdesari.online',
+    'https://stream.bsdtol.com',
+    'https://cijagolive.app-intracs.co.id:5443',
+    'https://streaming-cct.co.id',
+    'https://pub2.hk-opt.com',
+    'https://cctvjorrw1.com',
+    'https://info.serbaraja-tollroad.co.id:20443',
+  ]),
+  westjava: Object.freeze([
+    'https://pelindung.bandung.go.id:3443',
+    'https://streaming-cct.co.id',
+  ]),
+  depok: Object.freeze([
+    'https://dishub.depok.go.id',
+    'https://streaming-cct.co.id',
+  ]),
+  bogor: Object.freeze([
+    'https://restreamer.kotabogor.go.id',
+    'https://restreamer2.kotabogor.go.id',
+    'https://restreamer3.kotabogor.go.id',
+    'https://restreamer4.kotabogor.go.id',
+    'https://restreamer5.kotabogor.go.id',
+    'https://restreamer6.kotabogor.go.id',
+  ]),
+});
 
 /** Depok City (Indonesia) CCTV: Dishub Kota Depok municipal traffic cameras. */
 export const DEFAULT_DEPOK_SOURCE_FILE = 'config/cctv_sources.depok.json';
@@ -249,7 +286,7 @@ export const DEPOK_ANCHORS = [
   DEPOK_CENTER,
   { lat: -6.3725, lon: 106.8325 }, // Margonda Raya
   { lat: -6.4025, lon: 106.8185 }, // Balaikota Depok
-  { lat: -6.3985, lon: 106.822 },  // Underpass Dewi Sartika
+  { lat: -6.3985, lon: 106.822 }, // Underpass Dewi Sartika
 ];
 
 /** Bogor City (Indonesia) CCTV: Diskominfo Kota Bogor (BSW) municipal traffic cameras. */
@@ -261,7 +298,7 @@ export const BOGOR_ANCHORS = [
   { lat: -6.60156, lon: 106.80492 }, // Tugu Kujang
   { lat: -6.59604, lon: 106.79155 }, // Alun-Alun Bogor
   { lat: -6.59472, lon: 106.79375 }, // Balai Kota Bogor
-  { lat: -6.5575, lon: 106.776 },    // Simpang Yasmin
+  { lat: -6.5575, lon: 106.776 }, // Simpang Yasmin
 ];
 
 /** Live Traffic NSW (Transport for NSW): keyless public camera catalog. */

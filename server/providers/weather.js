@@ -3,6 +3,7 @@ import { readWindBody as readBytesCapped } from '../../src/sources/windBody.js';
 
 const BASE = 'https://nowcoast.noaa.gov/geoserver/observations/';
 const HOUR = 3600_000;
+const RAINVIEWER_TILE_HOST = 'https://tilecache.rainviewer.com';
 const PRODUCTS = Object.freeze({
   lightning: Object.freeze({
     service: 'lightning_detection',
@@ -67,8 +68,7 @@ const PRODUCTS = Object.freeze({
     service: 'nasa_gibs',
     layer: 'Himawari_AHI_Band13_Clean_Infrared',
     title: 'Himawari-9 satellite infrared · Indonesia & Asia-Pacific',
-    coverage:
-      'Indonesia, East Asia & Western Pacific: 80°E–160°W, 60°S–60°N.',
+    coverage: 'Indonesia, East Asia & Western Pacific: 80°E–160°W, 60°S–60°N.',
     description:
       'Himawari-9 AHI Band 13 clean longwave infrared cloud patterns, approximately 2 km and 10-minute updates.',
     source: 'Himawari-9 / NASA GIBS',
@@ -395,7 +395,13 @@ export function weatherProxy({
         const timeMap = new Map();
         const times = [];
         for (const item of past) {
-          if (typeof item.time === 'number' && typeof item.path === 'string') {
+          if (
+            Number.isInteger(item?.time) &&
+            item.time > 0 &&
+            item.time < 4e9 &&
+            typeof item.path === 'string' &&
+            /^\/v2\/radar\/[A-Za-z0-9_-]{1,64}$/.test(item.path)
+          ) {
             const t = new Date(item.time * 1000).toISOString();
             times.push(t);
             timeMap.set(t, item.path);
@@ -408,7 +414,9 @@ export function weatherProxy({
           times: recent,
           allowedTimes: times,
           timeMap,
-          host: data.host || 'https://tilecache.rainviewer.com',
+          // Tiles always come from the fixed RainViewer cache, never a host
+          // named by the metadata response.
+          host: RAINVIEWER_TILE_HOST,
           fetchedAt: now(),
         };
         metadata.set(product, value);
@@ -417,7 +425,8 @@ export function weatherProxy({
         if (signal.aborted) attempts.delete(product);
         signal.throwIfAborted();
         if (error.status === 429) throw error;
-        if (old && now() - old.fetchedAt <= HOUR) return { ...old, stale: true };
+        if (old && now() - old.fetchedAt <= HOUR)
+          return { ...old, stale: true };
         throw failure('weather_metadata_unavailable');
       }
     }
@@ -445,7 +454,8 @@ export function weatherProxy({
         if (signal.aborted) attempts.delete(product);
         signal.throwIfAborted();
         if (error.status === 429) throw error;
-        if (old && now() - old.fetchedAt <= HOUR) return { ...old, stale: true };
+        if (old && now() - old.fetchedAt <= HOUR)
+          return { ...old, stale: true };
         throw failure('weather_metadata_unavailable');
       }
     }
@@ -655,7 +665,7 @@ export function weatherProxy({
           const path =
             value.timeMap?.get(time) ??
             (value.times?.at(-1) ? value.timeMap?.get(value.times.at(-1)) : '');
-          upstreamUrl = `${value.host || 'https://tilecache.rainviewer.com'}${path}/256/${coords ? `${coords[0]}/${coords[1]}/${coords[2]}` : '0/0/0'}/2/1_1.png`;
+          upstreamUrl = `${RAINVIEWER_TILE_HOST}${path}/256/${coords ? `${coords[0]}/${coords[1]}/${coords[2]}` : '0/0/0'}/2/1_1.png`;
         } else if (product === 'clouds-himawari') {
           const gibsUrl = new URL(
             'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi',
