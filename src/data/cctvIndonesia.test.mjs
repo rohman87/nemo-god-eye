@@ -10,7 +10,7 @@ import {
   loadBogorSourcesFromOpenData,
 } from '../../server/providers/cctv/sources.js';
 import { createCctvCatalog } from '../../server/providers/cctv/catalog.js';
-import { CITY_POIS } from '../locations.js';
+import { CITY_POIS } from '../cityPois.js';
 import { CAMERA_SEEDS } from '../layers/cctv/policy.js';
 
 test('Jakarta catalog registers curated traffic cameras across major corridors', (t) => {

@@ -105,6 +105,9 @@ function calibrationFixture(t) {
       Object.assign(input, {
         focus() {},
         select() {},
+        setAttribute(name, value) {
+          this[name] = value;
+        },
         remove() {
           this.parent.input = null;
         },
@@ -331,10 +334,8 @@ test('provider packs quick enable all and disable all buttons', (t) => {
   assert.deepEqual(calls[1].params, {
     disabledPacks: ['jakarta', 'westjava', 'depok', 'bogor', 'austin'],
   });
-  assert.deepEqual(calls[2].params, {
-    resetDefaultPacks: true,
-    disabledPacks: ['austin'],
-  });
+  // The layer owns the default pack list; the button only asks for it.
+  assert.deepEqual(calls[2].params, { resetDefaultPacks: true });
 });
 
 test('fullscreen prev/next buttons and arrow keys cycle cameras', async (t) => {

@@ -166,6 +166,7 @@ export function createControls({ state: layerState, services, parts, source }) {
           Number(params.focusDurationSec) || 1.8,
         );
       }
+      let packsChanged = false;
       if (params.resetDefaultPacks) {
         layerState._packsCustomizedByUser = false;
         const disabled = new Set();
@@ -176,24 +177,14 @@ export function createControls({ state: layerState, services, parts, source }) {
           }
         }
         layerState._disabledPacks = disabled;
-        parts.rendering.refreshCoverageStyles();
-        parts.rendering.refreshHorizonCulling();
-        const active = parts.selection.getActiveRecord();
-        if (active && layerState._disabledPacks.has(active.camera.pack)) {
-          parts.selection.deactivateActiveCamera();
-        }
+        packsChanged = true;
       }
       if (Array.isArray(params.disabledPacks)) {
         layerState._packsCustomizedByUser = true;
         layerState._disabledPacks = new Set(
           params.disabledPacks.map((p) => String(p).toLowerCase()),
         );
-        parts.rendering.refreshCoverageStyles();
-        parts.rendering.refreshHorizonCulling();
-        const active = parts.selection.getActiveRecord();
-        if (active && layerState._disabledPacks.has(active.camera.pack)) {
-          parts.selection.deactivateActiveCamera();
-        }
+        packsChanged = true;
       }
       if (typeof params.togglePack === 'string') {
         layerState._packsCustomizedByUser = true;
@@ -203,11 +194,16 @@ export function createControls({ state: layerState, services, parts, source }) {
         } else {
           layerState._disabledPacks.add(pack);
         }
-        parts.rendering.refreshCoverageStyles();
-        parts.rendering.refreshHorizonCulling();
-        const active = parts.selection.getActiveRecord();
+        packsChanged = true;
+      }
+      if (packsChanged) {
+        // Read the raw active record: getActiveRecord() hides a disabled pack.
+        const active = layerState._recordById.get(layerState._activeCameraId);
         if (active && layerState._disabledPacks.has(active.camera.pack)) {
           parts.selection.deactivateActiveCamera();
+        } else if (parts.rendering.refreshHorizonCulling()) {
+          parts.geometryQueue.enqueueViewGeometry();
+          parts.cards.refreshAmbientCards();
         }
       }
       parts.rendering.refreshCoverageStyles();
@@ -251,22 +247,21 @@ export function createControls({ state: layerState, services, parts, source }) {
      * @returns {{ position: Cesium.Cartesian3, id: string, type: string }[]}
      */
     getDetectableObjects(options = {}) {
-      if (!layerState._enabled || layerState._records.length === 0) return [];
+      // The cameras the view pass shows, not icons it has hidden.
+      const records = layerState._viewRecords;
+      if (!layerState._enabled || records.length === 0) return [];
       const maxCount = Number.isFinite(options.maxCount)
         ? Math.max(1, Math.floor(options.maxCount))
-        : layerState._records.length;
+        : records.length;
       const seed = Number.isFinite(options.seed) ? Math.floor(options.seed) : 0;
-      const stride = Math.max(
-        1,
-        Math.ceil(layerState._records.length / maxCount),
-      );
+      const stride = Math.max(1, Math.ceil(records.length / maxCount));
       const start = seed % stride;
 
       const objects = [];
-      for (let i = start; i < layerState._records.length; i += stride) {
-        const camera = layerState._records[i].camera;
+      for (let i = start; i < records.length; i += stride) {
+        const camera = records[i].camera;
         objects.push({
-          position: layerState._records[i].position,
+          position: records[i].position,
           sourceId: camera.id,
           // Short semantic code where the id is opaque (see cameraDisplayCode).
           id: `CAM-${camera.code || camera.id}`,

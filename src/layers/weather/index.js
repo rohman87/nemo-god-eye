@@ -8,6 +8,23 @@ import {
   GLOBAL_INFRARED_MAX_GAP_MS,
   LIGHTNING_MAX_GAP_MS,
 } from './clock.js';
+import { formatUtcDayMonth, t, msg } from '../../i18n/index.js';
+import { formatScaleLabel } from '../../ui/unitLabels.js';
+
+/**
+ * A stored (English) failure in the language. HTTP failures from source.js
+ * and infraredImage.js carry their status in the text, so they are matched
+ * back onto a placeholder; anything else is a plain catalog key.
+ */
+function presentWeatherProblem(problem) {
+  const http = /^Weather (image )?HTTP (\d+)$/.exec(problem);
+  if (http) {
+    return http[1]
+      ? t('Weather image HTTP {status}', { status: http[2] })
+      : t('Weather HTTP {status}', { status: http[2] });
+  }
+  return t(problem);
+}
 
 const STOPS = [
   [10, '#00ecec'],
@@ -30,7 +47,9 @@ const LIGHTNING_STOPS = [
   ['300+', '#00FF00'],
 ];
 const utc = (value) =>
-  value ? `${value.slice(5, 16).replace('T', ' ')} UTC` : 'Unavailable';
+  value
+    ? `${formatUtcDayMonth(value)} ${value.slice(11, 16)} UTC`
+    : t('Unavailable');
 
 /** A per-application observation layer, using the existing layer lifecycle and
  * row controls. History is transient: shared links always open latest imagery. */
@@ -65,7 +84,7 @@ export function createWeatherLayer({
           ? 'clouds-himawari'
           : 'clouds-regional');
   let opacity = 'strong';
-  let infrared = 'filtered';
+  let infrared = 100;
   let viewer = null,
     rendering = null,
     manifest = null,
@@ -117,7 +136,8 @@ export function createWeatherLayer({
           ? 90
           : lightning
             ? 45
-            : 20) * 60_000;
+            : 20) *
+        60_000;
   const stop = () => {
     if (clock) return;
     playing = false;
@@ -250,12 +270,14 @@ export function createWeatherLayer({
         rendering.setHidden?.(false);
         void warmNext(time);
       }
-      error = ok ? null : 'Frame unavailable; previous observation retained';
+      error = ok
+        ? null
+        : msg('Frame unavailable; previous observation retained');
       if (!ok) stop();
       return ok;
     } catch {
       if (owner === generation && !controller.signal.aborted) {
-        error = 'Weather imagery unavailable';
+        error = msg('Weather imagery unavailable');
         stop();
       }
       return false;
@@ -284,7 +306,9 @@ export function createWeatherLayer({
           ? 'RainViewer / BMKG'
           : 'NOAA nowCOAST'
         : lightning
-          ? (enableIndonesia ? 'Vaisala GLD360 / BMKG' : 'NOAA nowCOAST')
+          ? enableIndonesia
+            ? 'Vaisala GLD360 / BMKG'
+            : 'NOAA nowCOAST'
           : product === 'clouds-himawari'
             ? 'Himawari-9 / NASA GIBS'
             : 'NOAA nowCOAST';
@@ -308,10 +332,6 @@ export function createWeatherLayer({
       motion?.addEventListener?.('change', onVisibility);
       documentRef?.addEventListener?.('visibilitychange', onVisibility);
       registerClock();
-      removeCamera = viewer.camera.moveEnd?.addEventListener(() => {
-        checkHost();
-        if (enabled) notify();
-      });
     },
     attachShellServices(services) {
       imageryHost =
@@ -327,10 +347,18 @@ export function createWeatherLayer({
     },
     enable() {
       enabled = true;
+      if (!removeCamera) {
+        removeCamera = viewer.camera.moveEnd?.addEventListener(() => {
+          checkHost();
+          notify();
+        });
+      }
       registerClock();
     },
     disable() {
       enabled = false;
+      removeCamera?.();
+      removeCamera = null;
       unregisterClock?.();
       unregisterClock = null;
       ++generation;
@@ -369,9 +397,11 @@ export function createWeatherLayer({
           signal: controller.signal,
         });
         if (!enabled || controller.signal.aborted || request !== controller)
-          return false;
+          return enabled && !signal?.aborted && request !== controller;
         if (snapshot.unavailable) {
-          error = 'Weather source unavailable; previous observation retained';
+          error = msg(
+            'Weather source unavailable; previous observation retained',
+          );
           stop();
           return true;
         }
@@ -387,7 +417,9 @@ export function createWeatherLayer({
           )
             await show(snapshot.latest, controller.signal);
           return (
-            !controller.signal.aborted && request === controller && enabled
+            enabled &&
+            !signal?.aborted &&
+            (!controller.signal.aborted || request !== controller)
           );
         }
         const time =
@@ -399,10 +431,15 @@ export function createWeatherLayer({
           (satellite && rendering.getDiagnostics().infrared !== infrared)
         )
           await show(time, controller.signal);
-        return !controller.signal.aborted && request === controller && enabled;
+        return (
+          enabled &&
+          !signal?.aborted &&
+          (!controller.signal.aborted || request !== controller)
+        );
       } catch (cause) {
-        if (controller.signal.aborted || request !== controller) return false;
-        error = cause?.message || 'Weather unavailable';
+        if (controller.signal.aborted || request !== controller)
+          return enabled && !signal?.aborted && request !== controller;
+        error = cause?.message || msg('Weather unavailable');
         stop();
         return true;
       } finally {
@@ -416,11 +453,20 @@ export function createWeatherLayer({
       }
     },
     setParams(params = {}) {
+      const nextInfrared = satellite
+        ? params.infrared === 'full'
+          ? 0
+          : params.infrared === 'filtered'
+            ? 100
+            : params.infrared
+        : null;
       const infraredChanged =
         satellite &&
-        ['filtered', 'full'].includes(params.infrared) &&
-        params.infrared !== infrared;
-      if (infraredChanged) infrared = params.infrared;
+        Number.isInteger(nextInfrared) &&
+        nextInfrared >= 0 &&
+        nextInfrared <= 100 &&
+        nextInfrared !== infrared;
+      if (infraredChanged) infrared = nextInfrared;
       if (['light', 'strong'].includes(params.opacity)) {
         opacity = params.opacity;
         rendering?.setAlpha(opacity === 'light' ? 0.4 : satellite ? 0.7 : 0.8);
@@ -443,7 +489,7 @@ export function createWeatherLayer({
         stop();
         manifest = null;
         error = null;
-        loading = true;
+        loading = enabled;
         followLatest = true;
         rendering?.clear();
         if (clock) void clock.refresh();
@@ -455,11 +501,7 @@ export function createWeatherLayer({
         if (clock && !isLatest()) void clock.refresh();
         else void show(shownTime() || manifest.latest);
       }
-      if (
-        params.focus === true &&
-        enabled &&
-        runNavigation
-      ) {
+      if (params.focus === true && enabled && runNavigation) {
         const b = lightning
           ? { west: 95, south: -15, east: 145, north: 15 }
           : radar && product === 'radar-global'
@@ -468,7 +510,12 @@ export function createWeatherLayer({
               ? { west: 80, south: -15, east: 155, north: 25 }
               : product === 'clouds'
                 ? { west: -180, south: -60, east: 180, north: 60 }
-                : manifest?.bounds || { west: -125, south: 24, east: -66, north: 50 };
+                : manifest?.bounds || {
+                    west: -125,
+                    south: 24,
+                    east: -66,
+                    north: 50,
+                  };
         runNavigation(() =>
           viewer.camera.flyTo({
             destination: cesium.Rectangle.fromDegrees(
@@ -517,7 +564,9 @@ export function createWeatherLayer({
     },
     getParams() {
       return radar
-        ? (enableIndonesia ? { product, opacity } : { opacity })
+        ? enableIndonesia
+          ? { product, opacity }
+          : { opacity }
         : satellite
           ? { product, opacity, infrared }
           : { product, opacity };
@@ -529,15 +578,23 @@ export function createWeatherLayer({
         noFrame &&
         shared?.mode === 'history' &&
         shared.products.find((entry) => entry.id === id)?.selected === null
-          ? `No frame within ${maxGap() / 60_000 < 60 ? `${maxGap() / 60_000} min` : `${maxGap() / 3600_000} h`} of ${utc(shared.target)}`
+          ? maxGap() / 60_000 < 60
+            ? t('No frame within {gap} min of {time}', {
+                gap: maxGap() / 60_000,
+                time: utc(shared.target),
+              })
+            : t('No frame within {gap} h of {time}', {
+                gap: maxGap() / 3600_000,
+                time: utc(shared.target),
+              })
           : null;
       const time = shownTime();
       const relation =
         shared?.mode === 'history' && time
           ? Date.parse(time) === Date.parse(shared.target)
-            ? ' · synced'
+            ? 'synced'
             : Date.parse(time) < Date.parse(shared.target)
-              ? ' · nearest'
+              ? 'nearest'
               : ''
           : '';
       const times = manifest?.times || [];
@@ -550,9 +607,16 @@ export function createWeatherLayer({
         age === null
           ? ''
           : age >= 60
-            ? `${Math.floor(age / 60)}h ${age % 60}m ago`
-            : `${age}m ago`;
+            ? t('{hours}h {minutes}m ago', {
+                hours: Math.floor(age / 60),
+                minutes: age % 60,
+              })
+            : t('{minutes}m ago', { minutes: age });
       const diagnostic = rendering?.getDiagnostics();
+      // Errors are stored in English (stats, diagnostics); shown translated.
+      const problem = error || diagnostic?.error;
+      const shownProblem = problem ? presentWeatherProblem(problem) : null;
+      const shownHost = hostStatus ? t(hostStatus) : null;
       const b = manifest?.bounds;
       const canvas = viewer?.scene?.canvas;
       const point =
@@ -577,51 +641,104 @@ export function createWeatherLayer({
           lat < b.south ||
           lat > b.north ||
           (!enableIndonesia && lightning && lon > 0 && lon < 110));
+      let detail = time
+        ? t('{state} · {time} · {lag}', {
+            state: followLatest ? t('Observed') : t('History'),
+            time: utc(time),
+            lag,
+          })
+        : missing
+          ? t('Observation unavailable')
+          : t('Waiting for observation');
+      if (relation === 'synced') detail = t('{detail} · synced', { detail });
+      else if (relation === 'nearest')
+        detail = t('{detail} · nearest', { detail });
+      const infoHeading = radar
+        ? product === 'radar-global'
+          ? t('RAINVIEWER / BMKG RADAR · 10 min')
+          : t('RADAR REFLECTIVITY · dBZ')
+        : lightning
+          ? t('LIGHTNING DENSITY · 15 min accumulation')
+          : product === 'clouds-himawari'
+            ? t('HIMAWARI-9 INFRARED · 10 min')
+            : product === 'clouds'
+              ? t('GLOBAL INFRARED · hourly')
+              : t('GOES INFRARED · ~5 min');
+      const infoTime = time
+        ? `${t('{state}: {time}', {
+            state: followLatest ? t('Latest observation') : t('History'),
+            time: utc(time),
+          })}\n${[
+            lag,
+            current && !followLatest
+              ? t('frame {index}/{total}', {
+                  index: index + 1,
+                  total: times.length,
+                })
+              : '',
+            loading ? t('loading') : '',
+          ]
+            .filter(Boolean)
+            .join(' · ')}`
+        : [t('Observation: unavailable'), loading ? t('loading') : '']
+            .filter(Boolean)
+            .join(' · ');
+      const infoCoverage = radar
+        ? product === 'radar-global'
+          ? t('Indonesia & Global composite · clear sky = transparent')
+          : t('Contiguous US · gaps ≠ no rain')
+        : lightning
+          ? `${t('Americas + Pacific · not individual strikes')}\n${t('Color: strikes/km²/min ×10³')}`
+          : product === 'clouds-himawari'
+            ? t('Indonesia & Asia-Pacific · clean infrared')
+            : product === 'clouds'
+              ? t('60°S–60°N · typically 2–3 h delayed')
+              : t('North America · infrared imagery');
+      const infoMotion = motion?.matches
+        ? clock
+          ? t('Reduced motion · history playback unavailable')
+          : t('Reduced motion · manual history available')
+        : '';
       const controls = {
         readout: true,
         summary: {
           label: radar
             ? product === 'radar-global'
-              ? 'Rain radar · Indonesia / Global'
-              : 'Rain radar · US'
+              ? t('Rain radar · Indonesia / Global')
+              : t('Rain radar · US')
             : lightning
-              ? 'Lightning density · 15 min'
-              : 'Satellite clouds',
+              ? t('Lightning density · 15 min')
+              : t('Satellite clouds'),
           coverage: radar
             ? product === 'radar-global'
               ? 'Indonesia & Global'
               : 'CONUS'
             : lightning
               ? enableIndonesia
-                ? 'Indonesia, Pacific & Americas'
-                : 'Americas + Pacific'
+                ? t('Indonesia, Pacific & Americas')
+                : t('Americas + Pacific')
               : product === 'clouds-himawari'
-                ? 'Indonesia & Asia'
+                ? t('Indonesia & Asia')
                 : product === 'clouds'
-                  ? 'Global · 60°S–60°N'
-                  : 'North America',
+                  ? t('Global · 60°S–60°N')
+                  : t('North America'),
           shownTime: time,
           maxGapMinutes: maxGap() / 60_000,
-          detail: time
-            ? `${followLatest ? 'Observed' : 'History'} · ${utc(time)} · ${lag}${relation}`
-            : missing
-              ? 'Observation unavailable'
-              : 'Waiting for observation',
+          detail,
           status:
             missing ||
-            hostStatus ||
-            error ||
-            diagnostic?.error ||
+            shownHost ||
+            shownProblem ||
             (observationDelayed()
-              ? 'Source observations delayed'
+              ? t('Source observations delayed')
               : manifest?.stale
-                ? 'Stale source'
+                ? t('Stale source')
                 : loading
-                  ? 'Loading next frame…'
+                  ? t('Loading next frame…')
                   : outside
-                    ? 'Map center outside coverage'
+                    ? t('Map center outside coverage')
                     : null),
-          units: radar ? 'dBZ' : lightning ? 'strikes/km²/min ×10³' : '',
+          units: radar ? 'dBZ' : lightning ? t('strikes/km²/min ×10³') : '',
         },
         chips: [
           ...(radar && enableIndonesia
@@ -635,17 +752,21 @@ export function createWeatherLayer({
                 params: { product: value, focus: true },
                 title:
                   value === 'radar-global'
-                    ? 'Indonesia & Global composite Doppler radar from RainViewer & BMKG'
-                    : 'US CONUS base reflectivity mosaic from NOAA nowCOAST MRMS',
+                    ? t(
+                        'Indonesia & Global composite Doppler radar from RainViewer & BMKG',
+                      )
+                    : t(
+                        'US CONUS base reflectivity mosaic from NOAA nowCOAST MRMS',
+                      ),
               }))
             : []),
           ...(satellite
             ? [
                 ...(enableIndonesia
-                  ? [['clouds-himawari', 'Indonesia / Asia']]
+                  ? [['clouds-himawari', t('Indonesia / Asia')]]
                   : []),
-                ['clouds-regional', 'N. America'],
-                ['clouds', 'Global'],
+                ['clouds-regional', t('N. America')],
+                ['clouds', t('Global')],
               ].map(([value, label]) => ({
                 id: value,
                 label,
@@ -653,49 +774,58 @@ export function createWeatherLayer({
                 params: { product: value, focus: true },
                 title:
                   value === 'clouds-himawari'
-                    ? 'Himawari-9 10-minute infrared covering Indonesia & Asia-Pacific'
+                    ? t(
+                        'Himawari-9 10-minute infrared covering Indonesia & Asia-Pacific',
+                      )
                     : value === 'clouds'
-                      ? 'Hourly global mosaic; usually 2–3 hours delayed'
-                      : 'GOES regional clouds; approximately 5-minute updates',
+                      ? t('Hourly global mosaic; usually 2–3 hours delayed')
+                      : t(
+                          'GOES regional clouds; approximately 5-minute updates',
+                        ),
               }))
             : []),
           ...(satellite
             ? [
                 {
                   id: 'filtered',
-                  label: 'Clouds only',
-                  active: infrared === 'filtered',
-                  params: { infrared: 'filtered' },
-                  title:
-                    'Dim everything but the bright, cold cloud tops; a brightness filter, not a cloud mask',
+                  label: t('Clouds only'),
+                  active: infrared === 100,
+                  params: { infrared: 100 },
+                  title: t(
+                    'Apply the full cloud brightness key; 100% filter strength',
+                  ),
                 },
                 {
                   id: 'full',
-                  label: 'Full',
-                  active: infrared === 'full',
-                  params: { infrared: 'full' },
-                  title: 'The complete infrared image at the chosen opacity',
+                  label: t('Full'),
+                  active: infrared === 0,
+                  params: { infrared: 0 },
+                  title: t(
+                    'Show the complete infrared image; 0% filter strength',
+                  ),
                 },
               ]
             : []),
           ...['light', 'strong'].map((value) => ({
             id: `opacity-${value}`,
-            label: value === 'light' ? 'Soft' : 'Vivid',
+            label: value === 'light' ? t('Soft') : t('Vivid'),
             active: opacity === value,
             params: { opacity: value },
-            title: 'Image opacity; does not alter the observed values',
+            title: t('Image opacity; does not alter the observed values'),
           })),
           {
             id: 'coverage',
             label: radar
               ? product === 'radar-global'
-                ? 'View Indonesia'
-                : 'View US radar'
+                ? t('View Indonesia')
+                : t('View US radar')
               : lightning
-                ? 'View Indonesia & Pacific'
+                ? enableIndonesia
+                  ? t('View Indonesia & Pacific')
+                  : t('View Americas & Pacific')
                 : product === 'clouds-himawari'
-                  ? 'View Indonesia & Asia'
-                  : 'View coverage',
+                  ? t('View Indonesia & Asia')
+                  : t('View coverage'),
             disabled: !runNavigation,
             params: { focus: true },
           },
@@ -706,29 +836,43 @@ export function createWeatherLayer({
                 label: String(label),
                 color,
                 blurb: lightning
-                  ? `${label} strikes/km²/min ×10³ (15-minute density)`
-                  : `${label} dBZ radar reflectivity`,
+                  ? t('{value} strikes/km²/min ×10³ (15-minute density)', {
+                      value: formatScaleLabel(label),
+                    })
+                  : t('{value} dBZ radar reflectivity', {
+                      value: formatScaleLabel(label),
+                    }),
               }))
             : [],
         info: hostHidden
-          ? hostStatus
-          : `${radar ? (product === 'radar-global' ? 'RAINVIEWER / BMKG RADAR · 10 min' : 'RADAR REFLECTIVITY · dBZ') : lightning ? 'LIGHTNING DENSITY · 15 min accumulation' : product === 'clouds-himawari' ? 'HIMAWARI-9 INFRARED · 10 min' : product === 'clouds' ? 'GLOBAL INFRARED · hourly' : 'GOES INFRARED · ~5 min'}\n${time ? `${followLatest ? 'Latest observation' : 'History'}: ${utc(time)}\n${lag}${current && !followLatest ? ` · frame ${index + 1}/${times.length}` : ''}${loading ? ' · loading' : ''}` : `Observation: unavailable${loading ? ' · loading' : ''}`}${missing ? `\n${missing}` : ''}${manifest?.stale ? '\nSTALE · cached source metadata' : ''}${error || diagnostic?.error ? '\n' + (error || diagnostic.error) : ''}\n${radar ? (product === 'radar-global' ? 'Indonesia & Global composite · clear sky = transparent' : 'Contiguous US · gaps ≠ no rain') : lightning ? 'Americas + Pacific · not individual strikes\nColor: strikes/km²/min ×10³' : product === 'clouds-himawari' ? 'Indonesia & Asia-Pacific · clean infrared' : product === 'clouds' ? '60°S–60°N · typically 2–3 h delayed' : 'North America · infrared imagery'}${outside ? '\nMap center is outside source coverage' : ''}${motion?.matches ? (clock ? '\nReduced motion · history playback unavailable' : '\nReduced motion · manual history available') : ''}`,
+          ? shownHost
+          : `${infoHeading}\n${infoTime}${missing ? `\n${missing}` : ''}${manifest?.stale ? `\n${t('STALE · cached source metadata')}` : ''}${shownProblem ? `\n${shownProblem}` : ''}\n${infoCoverage}${outside ? `\n${t('Map center is outside source coverage')}` : ''}${infoMotion ? `\n${infoMotion}` : ''}`,
         infoTitle: lightning
-          ? 'NOAA/NWS 15-minute lightning density derived from Vaisala NLDN/GLD360. Coverage 95°E across the Pacific/Americas to 0°, 25°S–80°N. Not a live strike count, global coverage or a safety warning.'
-          : radar
-            ? product === 'radar-global'
-              ? 'RainViewer & BMKG composite Doppler radar echoes indicate active precipitation patterns across Indonesia and worldwide. In clear or non-raining conditions, reflectivity is zero and the layer is transparent.'
-              : 'NOAA MRMS radar echoes indicate precipitation patterns, not rain rate, a storm warning or a future forecast. Native source approximately 1 km; display is limited to level 6. Frames use exact advertised observation times.'
-            : product === 'clouds-himawari'
-              ? 'JMA Himawari-9 AHI Band 13 clean longwave infrared cloud patterns covering Indonesia and the Western Pacific via NASA GIBS. 10-minute cadence.'
-              : 'GOES-19/18 longwave infrared Band 14 regional; NESDIS global longwave mosaic. Clouds only dims everything but bright, cold cloud tops; a brightness filter, not a cloud mask. Coverage and freshness differ by region.',
+          ? t(
+              'NOAA/NWS 15-minute lightning density derived from Vaisala NLDN/GLD360. Coverage 110°E across the Pacific/Americas to 0°, 25°S–80°N. Not a live strike count, global coverage or a safety warning.',
+            )
+          : radar && product === 'radar-global'
+            ? t(
+                'RainViewer & BMKG composite Doppler radar echoes indicate active precipitation patterns across Indonesia and worldwide. In clear or non-raining conditions, reflectivity is zero and the layer is transparent.',
+              )
+            : radar
+              ? t(
+                  'NOAA MRMS radar echoes indicate precipitation patterns, not rain rate, a storm warning or a future forecast. Native source approximately 1 km; display is limited to level 6. Frames use exact advertised observation times.',
+                )
+              : product === 'clouds-himawari'
+                ? t(
+                    'JMA Himawari-9 AHI Band 13 clean longwave infrared cloud patterns covering Indonesia and the Western Pacific via NASA GIBS. 10-minute cadence.',
+                  )
+                : t(
+                    'GOES-19/18 longwave infrared Band 14 regional; NESDIS global longwave mosaic. Clouds only dims everything but bright, cold cloud tops; a brightness filter, not a cloud mask. Coverage and freshness differ by region.',
+                  ),
       };
       controls.summary.settings = [
         ...(satellite || (radar && enableIndonesia)
           ? [
               {
                 id: 'region',
-                label: 'REGION',
+                label: t('REGION'),
                 chips: controls.chips.filter(({ params }) => params.product),
               },
             ]
@@ -737,14 +881,28 @@ export function createWeatherLayer({
           ? [
               {
                 id: 'image',
-                label: 'IMAGE',
-                chips: controls.chips.filter(({ params }) => params.infrared),
+                label: t('IMAGE'),
+                chips: controls.chips.filter(
+                  ({ params }) => params.infrared !== undefined,
+                ),
+                range: {
+                  id: 'cloud-filter',
+                  param: 'infrared',
+                  min: 0,
+                  max: 100,
+                  step: 1,
+                  value: infrared,
+                  label: t('FILTER'),
+                  unit: '%',
+                  ariaLabel: t('Cloud filter strength'),
+                  commitOnChange: true,
+                },
               },
             ]
           : []),
         {
           id: 'opacity',
-          label: 'OPACITY',
+          label: t('OPACITY'),
           chips: controls.chips.filter(({ params }) => params.opacity),
         },
       ];
@@ -759,7 +917,7 @@ export function createWeatherLayer({
     getStats() {
       return {
         count: shownTime() ? 1 : 0,
-        countLabel: isLatest() ? 'Observed' : 'History',
+        countLabel: isLatest() ? t('Observed') : t('History'),
         lastUpdate: shownTime() ? Date.parse(shownTime()) : null,
         loading,
         error: error || rendering?.getDiagnostics().error || null,
@@ -771,7 +929,9 @@ export function createWeatherLayer({
               ? 'RainViewer / BMKG'
               : 'NOAA nowCOAST'
             : lightning
-              ? (enableIndonesia ? 'Vaisala GLD360 / BMKG' : 'NOAA nowCOAST')
+              ? enableIndonesia
+                ? 'Vaisala GLD360 / BMKG'
+                : 'NOAA nowCOAST'
               : product === 'clouds-himawari'
                 ? 'Himawari-9 / NASA GIBS'
                 : 'NOAA nowCOAST'),

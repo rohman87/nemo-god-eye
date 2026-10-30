@@ -1,3 +1,4 @@
+import { t } from '../i18n/index.js';
 import {
   _clearCctvFrame,
   _queueCctvFrame,
@@ -130,14 +131,14 @@ export class CctvControls {
       wrap.classList.add('cctv-frame-wrap-expanded');
       wrap.setAttribute('role', 'dialog');
       wrap.setAttribute('aria-modal', 'true');
-      wrap.setAttribute('aria-label', 'CCTV Fullscreen View');
+      wrap.setAttribute('aria-label', t('CCTV Fullscreen View'));
       wrap.tabIndex = -1;
       wrap.focus?.({ preventScroll: true });
       if (this._cctvFullscreenCloseBtn)
         this._cctvFullscreenCloseBtn.hidden = false;
       if (this._cctvFullscreenBtn) {
-        this._cctvFullscreenBtn.textContent = '✕ CLOSE';
-        this._cctvFullscreenBtn.title = 'Exit fullscreen view (Esc)';
+        this._cctvFullscreenBtn.textContent = t('✕ CLOSE');
+        this._cctvFullscreenBtn.title = t('Exit fullscreen view (Esc)');
       }
       try {
         if (
@@ -161,8 +162,8 @@ export class CctvControls {
       if (this._cctvFullscreenCloseBtn)
         this._cctvFullscreenCloseBtn.hidden = true;
       if (this._cctvFullscreenBtn) {
-        this._cctvFullscreenBtn.textContent = '⤢ FULLSCREEN';
-        this._cctvFullscreenBtn.title = 'Toggle Fullscreen view (Esc)';
+        this._cctvFullscreenBtn.textContent = t('⤢ FULLSCREEN');
+        this._cctvFullscreenBtn.title = t('Toggle Fullscreen view (Esc)');
       }
       try {
         if (
