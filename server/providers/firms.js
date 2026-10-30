@@ -19,11 +19,17 @@ import { readResponseTextCapped } from './common/http.js';
  * fetch across dev-server restarts. Pattern mirrors celestrakProxy.
  *
  * Routes:
- *   GET /api/firms        → {fetchedAt, stale, ttlMs, sources, count, fires}
- *   GET /api/firms/status → {hasKey, lastFetch, count, stale, ttlMs, transactions}
+ *   GET /api/firms        → {fetchedAt, stale, ttlMs, sources, count, fires, coverage}
+ *   GET /api/firms/status → {hasKey, lastFetch, count, stale, ttlMs, transactions, coverage}
  *
- * Keyless (no FIRMS_MAP_KEY): /api/firms → 503 {error:'no_key'}; status →
- * {hasKey:false}. Upstream is never touched without a key.
+ * Keyless fallback (no FIRMS_MAP_KEY): /api/firms serves NASA's public regional
+ * "South-East Asia" 24 h CSVs (no key, no quota; covers Indonesia) instead of
+ * the worldwide area API. The payload and status carry `coverage:
+ * 'southeast-asia'` (`'world'` with a key); the regional files have no
+ * `instrument` column, so it is derived from the source. Cache entries are
+ * tagged with their coverage and a world cache never answers keyless requests
+ * (or vice versa). Status keyless: {hasKey:false, transactions:null} —
+ * mapkey_status is never called without a key.
  *
  * @returns {import('vite').Plugin}
  */
@@ -36,26 +42,51 @@ export function firmsProxy() {
     'VIIRS_SNPP_NRT',
     'MODIS_NRT',
   ];
+  /** Public keyless NASA FIRMS regional (South-East Asia, ~24 h) CSVs. */
+  const REGIONAL_BASE = 'https://firms.modaps.eosdis.nasa.gov/data/active_fire';
+  const REGIONAL_FILES = {
+    VIIRS_NOAA20_NRT: 'noaa-20-viirs-c2/csv/J1_VIIRS_C2_SouthEast_Asia_24h.csv',
+    VIIRS_NOAA21_NRT: 'noaa-21-viirs-c2/csv/J2_VIIRS_C2_SouthEast_Asia_24h.csv',
+    VIIRS_SNPP_NRT:
+      'suomi-npp-viirs-c2/csv/SUOMI_VIIRS_C2_SouthEast_Asia_24h.csv',
+    MODIS_NRT: 'modis-c6.1/csv/MODIS_C6_1_SouthEast_Asia_24h.csv',
+  };
+  const REGIONAL_COVERAGE = 'southeast-asia';
   /**
    * Per-source body cap. A VIIRS world/2 pull is ~130k rows x ~100 B, about
    * 13 MB per satellite in heavy fire season (MODIS runs smaller), so this is a
    * bound, not a budget.
    */
   const FIRMS_MAX_RESPONSE_BYTES = 64 * 1024 * 1024;
+  /** Keyless regional 24 h files are a few MB; a tighter bound suffices. */
+  const REGIONAL_MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
+  /** First retry delay after a failed refresh; doubles per failure, capped at TTL. */
+  const FAILURE_BACKOFF_MS = 30_000;
   const CACHE_DIR = path.join(process.cwd(), '.gev-cache');
   const CACHE_PATH = path.join(CACHE_DIR, 'firms.json');
 
-  /** @type {?{at: number, sources: Array<object>, fires: Array<object>}} */
+  /** @type {?{at: number, sources: Array<object>, fires: Array<object>, coverage?: string}} */
   let mem = null;
   let diskChecked = false;
-  /** @type {?Promise<?{at: number, sources: Array<object>, fires: Array<object>}>} single-flight refresh */
+  /** @type {?Promise<?{at: number, sources: Array<object>, fires: Array<object>, coverage: string}>} single-flight refresh */
   let inflight = null;
+  /**
+   * Failure backoff: keyless mode lets any client trigger upstream pulls, so a
+   * failed refresh must not be retried on every request. Scoped to the
+   * coverage that failed, so adding a key retries at once.
+   */
+  let failures = 0;
+  let retryAt = 0;
+  let retryCoverage = null;
   /** @type {?{at: number, transactions: ?{used: number, limit: number}}} mapkey_status cache */
   let statusCache = null;
   /** @type {?Promise<?{used: number, limit: number}>} */
   let statusInflight = null;
 
   const mapKey = () => String(process.env.FIRMS_MAP_KEY || '').trim();
+
+  /** Legacy disk entries have no `coverage`; they were worldwide pulls. */
+  const entryCoverage = (entry) => entry?.coverage || 'world';
 
   async function readDiskOnce() {
     if (diskChecked) return;
@@ -85,18 +116,33 @@ export function firmsProxy() {
 
   /**
    * Fetch + parse one FIRMS source. Throws on HTTP error or a non-CSV body
-   * (FIRMS reports errors as HTML/plain text, never CSV). Never log the URL —
-   * it embeds the MAP_KEY.
+   * (FIRMS reports errors as HTML/plain text, never CSV). Without a key it
+   * reads the public regional CSV instead of the area API. Never log the URL —
+   * keyed URLs embed the MAP_KEY.
    */
   async function fetchSource(key, source) {
-    const url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${encodeURIComponent(key)}/${source}/world/2`;
+    const url = key
+      ? `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${encodeURIComponent(key)}/${source}/world/2`
+      : `${REGIONAL_BASE}/${REGIONAL_FILES[source]}`;
     const signal = AbortSignal.timeout(60_000);
     const res = await fetch(url, { signal });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const records = parseFirmsCsv(
-      await readResponseTextCapped(res, FIRMS_MAX_RESPONSE_BYTES, signal),
+      await readResponseTextCapped(
+        res,
+        key ? FIRMS_MAX_RESPONSE_BYTES : REGIONAL_MAX_RESPONSE_BYTES,
+        signal,
+      ),
     );
     if (records === null) throw new Error('non-CSV upstream response');
+    if (!key) {
+      // The regional files have no `instrument` column; the client derives
+      // the sensor from it.
+      const instrument = source === 'MODIS_NRT' ? 'MODIS' : 'VIIRS';
+      for (const record of records) {
+        if (!record.instrument) record.instrument = instrument;
+      }
+    }
     return records;
   }
 
@@ -143,6 +189,7 @@ export function firmsProxy() {
       sources: entry.sources,
       count: fires.length,
       fires,
+      coverage: entryCoverage(entry),
     };
   }
 
@@ -196,38 +243,25 @@ export function firmsProxy() {
       try {
         const subPath = String(req.url || '').split('?')[0];
         const key = mapKey();
+        const coverage = key ? 'world' : REGIONAL_COVERAGE;
         await readDiskOnce();
+        // A cache from the other coverage is treated as missing.
+        const entry = mem && entryCoverage(mem) === coverage ? mem : null;
 
         if (subPath === '/status') {
-          if (!key) {
-            sendJson(200, {
-              hasKey: false,
-              lastFetch: null,
-              count: null,
-              stale: false,
-              ttlMs: TTL_MS,
-              transactions: null,
-            });
-            return;
-          }
-          const transactions = await getTransactions(key);
+          const transactions = key ? await getTransactions(key) : null;
           sendJson(200, {
-            hasKey: true,
-            lastFetch: mem ? mem.at : null,
-            count: mem ? mem.fires.length : null,
-            stale: mem ? Date.now() - mem.at >= TTL_MS : false,
+            hasKey: Boolean(key),
+            lastFetch: entry ? entry.at : null,
+            count: entry ? entry.fires.length : null,
+            stale: entry ? Date.now() - entry.at >= TTL_MS : false,
             ttlMs: TTL_MS,
             transactions,
+            coverage,
           });
           return;
         }
 
-        if (!key) {
-          sendJson(503, { error: 'no_key' });
-          return;
-        }
-
-        const entry = mem;
         if (entry && Date.now() - entry.at < TTL_MS) {
           sendJson(200, buildPayload(entry, false));
           return;
@@ -235,14 +269,30 @@ export function firmsProxy() {
         // Stale or missing → refresh, single-flight (concurrent requests
         // share one upstream pass). Capture the promise locally BEFORE
         // awaiting: the .finally() nulls `inflight` the moment it settles.
+        if (!inflight && retryCoverage === coverage && Date.now() < retryAt) {
+          // Backing off after a failed refresh: serve what we have.
+          if (entry) sendJson(200, buildPayload(entry, true));
+          else sendJson(502, { error: 'firms fetch failed; retrying later' });
+          return;
+        }
         if (!inflight) {
           inflight = refreshUpstream(key)
             .then(async (fresh) => {
-              mem = fresh;
-              await writeDisk(fresh);
-              return fresh;
+              const tagged = { ...fresh, coverage };
+              failures = 0;
+              retryAt = 0;
+              retryCoverage = null;
+              mem = tagged;
+              await writeDisk(tagged);
+              return tagged;
             })
             .catch((err) => {
+              if (retryCoverage !== coverage) failures = 0;
+              retryCoverage = coverage;
+              failures += 1;
+              retryAt =
+                Date.now() +
+                Math.min(TTL_MS, FAILURE_BACKOFF_MS * 2 ** (failures - 1));
               console.warn(
                 `[firms-proxy] refresh failed (${err?.message || err}) — serving cache if any`,
               );
@@ -253,7 +303,10 @@ export function firmsProxy() {
             });
         }
         const pending = inflight;
-        const fresh = await pending;
+        const result = await pending;
+        // Key flipped mid-flight: a result of the other coverage is not ours.
+        const fresh =
+          result && entryCoverage(result) === coverage ? result : null;
         if (fresh) {
           sendJson(200, buildPayload(fresh, false));
         } else if (entry) {

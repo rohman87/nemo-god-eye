@@ -99,6 +99,42 @@ test('duplicate ids resolve last-pack-wins and count against the winning pack', 
   ]);
 });
 
+test('priority packs are served whole before non-priority packs share the rest', () => {
+  const packs = [
+    pack('world-a', 10),
+    { ...pack('jakarta', 6), priority: true },
+    pack('world-b', 10),
+    { ...pack('westjava', 4), priority: true },
+  ];
+  const { sources, packs: kept } = allocateSourceCap(packs, 14);
+  const byName = Object.fromEntries(kept.map((p) => [p.name, p.kept]));
+  assert.equal(sources.length, 14);
+  assert.equal(byName.jakarta, 6);
+  assert.equal(byName.westjava, 4);
+  assert.equal(byName['world-a'], 2);
+  assert.equal(byName['world-b'], 2);
+  assert.deepEqual(
+    sources.slice(0, 10).map((s) => s.id.split('-')[0]),
+    [
+      'jakarta',
+      'westjava',
+      'jakarta',
+      'westjava',
+      'jakarta',
+      'westjava',
+      'jakarta',
+      'westjava',
+      'jakarta',
+      'jakarta',
+    ],
+  );
+
+  // A cap smaller than the priority packs still only serves priority packs.
+  const tight = allocateSourceCap(packs, 5);
+  assert.equal(tight.sources.length, 5);
+  assert.ok(tight.sources.every((s) => /^(jakarta|westjava)/.test(s.id)));
+});
+
 test('resolveCatalogCap bounds the env value and falls back to the default', () => {
   assert.equal(resolveCatalogCap(undefined), DEFAULT_CCTV_MAX_SOURCES);
   assert.equal(resolveCatalogCap('nonsense'), DEFAULT_CCTV_MAX_SOURCES);

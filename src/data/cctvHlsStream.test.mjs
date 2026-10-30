@@ -223,3 +223,120 @@ test('an abandoned consumer expires while a renewed consumer keeps the session',
   assert.equal(entry.controller.signal.aborted, false);
   await manager.shutdown();
 });
+
+// A finite VOD clip like Depok Dishub: same four segment names every poll.
+const finitePlaylist =
+  '#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:1\n#EXTINF:2,\ns1.ts\n#EXTINF:2,\ns2.ts\n#EXTINF:2,\ns3.ts\n#EXTINF:2,\ns4.ts\n#EXT-X-ENDLIST\n';
+
+/** Shift Date.now() forward without touching real timers; returns the controls. */
+function fakeClock() {
+  const realNow = Date.now;
+  let offset = 0;
+  Date.now = () => realNow() + offset;
+  return {
+    advance: (ms) => (offset += ms),
+    restore: () => (Date.now = realNow),
+  };
+}
+
+const until = async (condition) => {
+  for (let i = 0; i < 200 && !condition(); i++)
+    await new Promise((r) => setTimeout(r, 5));
+  assert.ok(condition(), 'condition not met in time');
+};
+
+const countDiscontinuities = (text) =>
+  text.split('\n').filter((line) => line === '#EXT-X-DISCONTINUITY').length;
+
+test('a finite ENDLIST clip is not re-ingested before its duration has played out', async () => {
+  const clock = fakeClock();
+  let segmentFetches = 0;
+  const manager = createHlsPuller({
+    limits: { ...HLS_LIMITS, pollMs: 5 },
+    fetchImpl: async (url) => {
+      if (url.endsWith('.m3u8')) return new Response(finitePlaylist);
+      segmentFetches++;
+      return new Response('abc');
+    },
+  });
+  try {
+    const entry = await manager.ensure('a', base);
+    await until(() => Number.isFinite(entry.replayAt));
+    assert.equal(segmentFetches, 4);
+    // Just under the 8 s clip length: still not due.
+    clock.advance(7000);
+    await new Promise((r) => setTimeout(r, 40));
+    assert.equal(segmentFetches, 4);
+    assert.equal(entry.segments.size, 4);
+    const text = await manager.buildPlaylist(entry, 'a');
+    assert.equal(countDiscontinuities(text), 0);
+    assert.doesNotMatch(text, /seg_4\.ts/);
+  } finally {
+    clock.restore();
+    await manager.shutdown();
+  }
+});
+
+test('a finite ENDLIST clip is re-ingested with a discontinuity once its duration elapses', async () => {
+  const clock = fakeClock();
+  let segmentFetches = 0;
+  const manager = createHlsPuller({
+    limits: { ...HLS_LIMITS, pollMs: 5 },
+    fetchImpl: async (url) => {
+      if (url.endsWith('.m3u8')) return new Response(finitePlaylist);
+      segmentFetches++;
+      return new Response('abc');
+    },
+  });
+  try {
+    const entry = await manager.ensure('a', base);
+    await until(() => Number.isFinite(entry.replayAt));
+    assert.equal(segmentFetches, 4);
+    clock.advance(9000);
+    await until(() => segmentFetches === 8);
+    // The replay re-arms replayAt, so exactly one extra pass happens.
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(segmentFetches, 8);
+    const text = await manager.buildPlaylist(entry, 'a');
+    assert.deepEqual(
+      [...text.matchAll(/seg_(\d+)\.ts/g)].map((m) => Number(m[1])),
+      [0, 1, 2, 3, 4, 5, 6, 7],
+    );
+    assert.equal(countDiscontinuities(text), 1);
+    assert.match(
+      text,
+      /#EXT-X-DISCONTINUITY\n#EXTINF:2\.000,\n\/api\/cctv\/media\/a\/seg_4\.ts/,
+    );
+  } finally {
+    clock.restore();
+    await manager.shutdown();
+  }
+});
+
+test('a live playlist without ENDLIST and no new segments never re-ingests', async () => {
+  const clock = fakeClock();
+  let segmentFetches = 0;
+  const manager = createHlsPuller({
+    limits: { ...HLS_LIMITS, pollMs: 5 },
+    fetchImpl: async (url) => {
+      if (url.endsWith('.m3u8')) return new Response(playlist);
+      segmentFetches++;
+      return new Response('abc');
+    },
+  });
+  try {
+    const entry = await manager.ensure('a', base);
+    await until(() => segmentFetches === 3);
+    assert.equal(entry.replayAt, Infinity);
+    clock.advance(24 * 60 * 60 * 1000);
+    await new Promise((r) => setTimeout(r, 40));
+    assert.equal(segmentFetches, 3);
+    assert.equal(entry.replayAt, Infinity);
+    const text = await manager.buildPlaylist(entry, 'a');
+    assert.equal(countDiscontinuities(text), 0);
+    assert.doesNotMatch(text, /seg_3\.ts/);
+  } finally {
+    clock.restore();
+    await manager.shutdown();
+  }
+});

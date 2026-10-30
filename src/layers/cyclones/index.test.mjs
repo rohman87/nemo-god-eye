@@ -548,7 +548,7 @@ test('advisory selection uses accessible row descriptors and shared camera hando
   const controls = h.layer.getRowControls();
   assert.equal(controls.readout, true);
   assert.deepEqual(controls.chips, []);
-  assert.equal(controls.summary.coverage, 'Atlantic · E/C Pacific');
+  assert.equal(controls.summary.coverage, 'Indonesia · Pacific · Indian Ocean');
   assert.equal(controls.summary.actions[0].href, storm().advisoryUrl);
   assert.equal(controls.summary.lines.length, 3);
   assert.deepEqual(controls.summary.settings, []);
@@ -592,6 +592,26 @@ test('advisory selection uses accessible row descriptors and shared camera hando
   assert.equal(h.layer.getDiagnostics().timerActive, false);
   h.layer.destroy();
   assert.equal(h.destroyed, 1);
+});
+test('auto-select picks the storm nearest Indonesia, falling back to the first', async () => {
+  const far = { ...storm('ep152026') };
+  const near = {
+    ...storm('wp012026'),
+    position: { longitude: 125.2, latitude: 8.4 },
+  };
+  const noPosition = { ...storm('xx012026'), position: null };
+  for (const [storms, expected] of [
+    [[far, near], 'wp012026'],
+    [[near, far], 'wp012026'],
+    [[noPosition, far], 'ep152026'],
+    [[noPosition], 'xx012026'],
+  ]) {
+    const h = harness({ getSnapshot: async () => snapshot(storms) });
+    h.layer.enable();
+    await h.layer.update();
+    assert.equal(h.layer.getDiagnostics().selectedId, expected);
+    h.layer.destroy();
+  }
 });
 test('empty successful coverage, unavailable source and stale advisory are different states', async () => {
   let next = snapshot([]);

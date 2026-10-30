@@ -813,15 +813,16 @@ check({
 });
 
 check({
-  id: 'B7', group: 'B', desc: 'FIRMS without a key fails HONESTLY (503 no_key, never a healthy-empty)',
+  id: 'B7', group: 'B', desc: 'FIRMS without a key serves the labelled South-East Asia fallback (or fails honestly, never a healthy-empty)',
   run: async () => {
     const guard = keyGuard('FIRMS', env.keys.FIRMS);
     if (guard) return guard;
     if (env.keys.FIRMS === true) return skip('server HAS a FIRMS key — the keyless path needs an unkeyed server', 'N/A');
     const r = await jget('/api/firms');
-    return r.status === 503 && r.json?.error === 'no_key'
-      ? pass('503 {"error":"no_key"}')
-      : fail(`expected 503 no_key, got ${r.status} ${r.text.slice(0, 120)}`);
+    if (r.status === 502) return pass('502 — regional upstream unreachable, reported as an error');
+    return r.ok && r.json?.coverage === 'southeast-asia' && Array.isArray(r.json?.fires)
+      ? pass(`200 coverage:southeast-asia, ${r.json.fires.length} fires`)
+      : fail(`expected 200 coverage:southeast-asia, got ${r.status} ${r.text.slice(0, 120)}`);
   },
 });
 

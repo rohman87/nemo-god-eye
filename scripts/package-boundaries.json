@@ -2799,6 +2799,7 @@
       "src/data/geoImportImages.js",
       "src/app/layers/airQuality.js",
       "src/layers/airQuality/index.js",
+      "src/layers/airQuality/ispu.js",
       "src/layers/airQuality/model.js",
       "src/layers/airQuality/source.js",
       "src/ui/statusText.js",
@@ -3388,6 +3389,7 @@
       "src/data/cameraFraming.js",
       "src/app/layers/airQuality.js",
       "src/layers/airQuality/index.js",
+      "src/layers/airQuality/ispu.js",
       "src/layers/airQuality/model.js",
       "src/layers/airQuality/source.js",
       "src/ui/statusText.js",
@@ -3878,6 +3880,7 @@
       "src/layers/perimeters/records.js",
       "src/layers/submarineCables/bundledSource.js",
       "src/layers/gnss/source.js",
+      "src/layers/airQuality/ispu.js",
       "src/layers/airQuality/model.js",
       "src/layers/airQuality/source.js"
     ],
@@ -4414,6 +4417,7 @@
     "exports": ["./layers/air-quality"],
     "modules": [
       "src/layers/airQuality/index.js",
+      "src/layers/airQuality/ispu.js",
       "src/layers/airQuality/model.js",
       "src/layers/airQuality/source.js",
       "src/sources/httpBody.js",
@@ -4438,6 +4442,7 @@
   "air-quality-source": {
     "exports": ["./layers/air-quality/source"],
     "modules": [
+      "src/layers/airQuality/ispu.js",
       "src/layers/airQuality/model.js",
       "src/layers/airQuality/source.js",
       "src/sources/httpBody.js",

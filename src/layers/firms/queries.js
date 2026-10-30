@@ -40,8 +40,9 @@ export function createQueries({
 
     source,
 
-    // The one data-layer control a provider key gates: the proxy answers
-    // 503 {error:'no_key'} without a FIRMS key. Declared as a key-registry id
+    // The one data-layer control a provider key gates: without a FIRMS key the
+    // proxy serves South-East Asia only (coverage 'southeast-asia'); a key
+    // unlocks worldwide data. Declared as a key-registry id
     // rather than an env-var string, so the panel can name the key from the
     // one place that owns what each key is called.
     requiresKeyId: 'firms',
@@ -79,9 +80,13 @@ export function createQueries({
       } else if (layerState._error) {
         loadingLabel = layerState._error;
       } else if (layerState._lastUpdate) {
-        loadingLabel = t('LIVE · updated {age}', {
-          age: components.model.formatAgoMinutes(now - layerState._lastUpdate),
-        });
+        const age = components.model.formatAgoMinutes(
+          now - layerState._lastUpdate,
+        );
+        loadingLabel =
+          layerState._coverage === 'southeast-asia'
+            ? t('LIVE · SE Asia · updated {age}', { age })
+            : t('LIVE · updated {age}', { age });
       }
       return {
         count: layerState._count,
@@ -94,6 +99,7 @@ export function createQueries({
         // from a broken feed, and the row reads as a fault instead of a step
         // the operator can take.
         keyRequired: layerState._keyRequired,
+        coverage: layerState._coverage,
         error: layerState._keyRequired
           ? t('KEY REQUIRED')
           : layerState._stale

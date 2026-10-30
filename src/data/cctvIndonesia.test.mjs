@@ -27,7 +27,7 @@ test('Jakarta catalog registers curated traffic cameras across major corridors',
       `Latitude out of bounds: ${camera.lat}`,
     );
     assert.ok(
-      camera.lon >= 106.5 && camera.lon <= 107.2,
+      camera.lon >= 106.2 && camera.lon <= 107.2,
       `Longitude out of bounds: ${camera.lon}`,
     );
     assert.ok(camera.url.includes('.m3u8'), `URL must be HLS stream: ${camera.url}`);

@@ -171,21 +171,25 @@ const LIVE_PACKS = [
   },
   {
     name: 'jakarta',
+    priority: true,
     enabled: () => envEnabled('CCTV_JAKARTA_ENABLED'),
     load: loadJakartaSourcesFromOpenData,
   },
   {
     name: 'westjava',
+    priority: true,
     enabled: () => envEnabled('CCTV_WESTJAVA_ENABLED'),
     load: loadWestJavaSourcesFromOpenData,
   },
   {
     name: 'depok',
+    priority: true,
     enabled: () => envEnabled('CCTV_DEPOK_ENABLED'),
     load: loadDepokSourcesFromOpenData,
   },
   {
     name: 'bogor',
+    priority: true,
     enabled: () => envEnabled('CCTV_BOGOR_ENABLED'),
     load: loadBogorSourcesFromOpenData,
   },
@@ -328,8 +332,9 @@ export function createCctvCatalog({ sourceRoot = process.cwd() } = {}) {
       : [];
     // Live packs first so file/env overrides win on duplicate IDs; each pack
     // keeps its own priority order and the catalog cap is shared fairly.
-    const normalizePack = (name, items) => ({
+    const normalizePack = (name, items, priority = false) => ({
       name,
+      priority: Boolean(priority),
       sources: items
         .filter((item) => item && typeof item === 'object')
         .map((item) => ({ ...normalizeSourceItem(item), pack: name }))
@@ -346,6 +351,7 @@ export function createCctvCatalog({ sourceRoot = process.cwd() } = {}) {
           liveResults[index]?.status === 'fulfilled'
             ? liveResults[index].value
             : [],
+          pack.priority,
         ),
       ),
       normalizePack('file', fromFile),

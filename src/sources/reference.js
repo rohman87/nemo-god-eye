@@ -1,5 +1,9 @@
 import { createUsgsEarthquakeSource } from '../layers/earthquakes/source.js';
-import { createEcccAirQualitySource } from '../layers/airQuality/source.js';
+import {
+  createCompositeAirQualitySource,
+  createEcccAirQualitySource,
+  createSipongiAirQualitySource,
+} from '../layers/airQuality/source.js';
 import { createWfigsPerimeterSource } from '../layers/perimeters/source.js';
 import { createBundledCableSource } from '../layers/submarineCables/bundledSource.js';
 import { createAdsbGnssSource } from '../layers/gnss/source.js';
@@ -8,7 +12,10 @@ import { createAdsbGnssSource } from '../layers/gnss/source.js';
 export function createReferenceSources() {
   return {
     earthquakes: createUsgsEarthquakeSource(),
-    'air-quality': createEcccAirQualitySource(),
+    'air-quality': createCompositeAirQualitySource([
+      createSipongiAirQualitySource(),
+      createEcccAirQualitySource(),
+    ]),
     'fire-perimeters': createWfigsPerimeterSource(),
     cables: createBundledCableSource(),
     'gnss-integrity': createAdsbGnssSource(),

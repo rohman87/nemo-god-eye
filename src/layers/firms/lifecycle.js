@@ -98,6 +98,7 @@ export function createLifecycle({
       layerState._cellCount = 0;
       layerState._lastUpdate = null;
       layerState._keyRequired = false;
+      layerState._coverage = 'world';
       layerState._stale = false;
       layerState._error = null;
       layerState._currentLodId = null;

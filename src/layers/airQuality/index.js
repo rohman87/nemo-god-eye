@@ -6,7 +6,7 @@ import {
   AIR_QUALITY_OVERLAY_SOURCE_ID,
   AIR_QUALITY_OVERLAY_COHORT_LIMIT,
   AIR_QUALITY_OVERLAY_COLLISION_CAPACITY,
-  AIR_QUALITY_PROVIDERS,
+  AIR_QUALITY_COVERAGE,
   createAirQualityOverlayEntry,
   mapAnalystRecord,
   newestObservation,
@@ -15,7 +15,17 @@ import {
   selectAirQualityOverlayCohort,
 } from './model.js';
 export * from './model.js';
-export { createEcccAirQualitySource } from './source.js';
+export {
+  createEcccAirQualitySource,
+  createSipongiAirQualitySource,
+  createCompositeAirQualitySource,
+} from './source.js';
+export {
+  normalizeIspuStations,
+  ispuReadings,
+  parseIspuTime,
+  ispuUtcOffsetHours,
+} from './ispu.js';
 
 /** Station markers are a point reading, not an extent. */
 const STATION_MARKER_RADIUS_M = 6_000;
@@ -56,7 +66,7 @@ export function createAirQualityLayer({ source, overlayHost } = {}) {
     id: 'air-quality',
     name: 'Air quality',
     icon: '◍',
-    source: 'ECCC MSC GeoMet',
+    source: 'KLHK SiPongi · ECCC MSC GeoMet',
     updateInterval: 1_200_000,
 
     init(viewer) {
@@ -167,7 +177,9 @@ export function createAirQualityLayer({ source, overlayHost } = {}) {
             position,
             title: `${reading.name} ${reading.label}`,
             accent: reading.color,
+            band: reading.band,
             value: reading.value,
+            provider: reading.provider,
           }),
         );
       }
@@ -210,7 +222,6 @@ export function createAirQualityLayer({ source, overlayHost } = {}) {
      * the rest. Coverage is stated plainly because this layer is not global.
      */
     getRowControls() {
-      const provider = AIR_QUALITY_PROVIDERS.eccc;
       const inView = readingsInView(_readings, viewRectangle(), READOUT_LIMIT);
       const newest = _readings.reduce(
         (max, reading) => Math.max(max, reading.observedMs || 0),
@@ -222,10 +233,10 @@ export function createAirQualityLayer({ source, overlayHost } = {}) {
       return {
         readout: true,
         summary: {
-          label: t(provider.label),
-          coverage: t(provider.coverage),
+          label: t('Air quality'),
+          coverage: t(AIR_QUALITY_COVERAGE),
           validTime: newest ? new Date(newest).toISOString() : undefined,
-          detail: `${provider.network} · ${provider.scale}`,
+          detail: 'KLHK ISPU · ECCC AQHI',
           status: _lastError
             ? translateFeedError(_lastError)
             : _count === 0
@@ -237,7 +248,9 @@ export function createAirQualityLayer({ source, overlayHost } = {}) {
                   '{count} station reporting',
                   '{count} stations reporting',
                 ),
-          units: provider.scale,
+          units: inView.length
+            ? [...new Set(inView.map((reading) => reading.scale))].join(' / ')
+            : 'ISPU / AQHI',
         },
         legend: AIR_QUALITY_BANDS.map((band) => ({
           color: band.color,

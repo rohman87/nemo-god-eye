@@ -300,16 +300,19 @@ test('FIRMS retains a large successful source during partial failure and filters
       : new Response('offline', { status: 503 });
   });
   const request = install(firmsProxy());
-  assert.equal((await request()).status, 503);
+  // Keyless pulls the regional files; all fail here, so 502 and a backoff
+  // that must not block the worldwide pull once a key is added.
+  assert.equal((await request()).status, 502);
   assert.equal(json(await request('/status')).hasKey, false);
-  assert.equal(calls, 0);
+  assert.equal(calls, 4);
   process.env.FIRMS_MAP_KEY = 'fixture-key';
   const first = json(await request());
   assert.equal(first.count, 130001);
+  assert.equal(first.coverage, 'world');
   assert.equal(first.sources.filter((s) => s.ok).length, 1);
-  assert.equal(calls, 4);
+  assert.equal(calls, 8);
   assert.equal(json(await request()).count, 130001);
-  assert.equal(calls, 4);
+  assert.equal(calls, 8);
   assert.deepEqual(json(await request('/status')).transactions, {
     used: 3,
     limit: 5000,

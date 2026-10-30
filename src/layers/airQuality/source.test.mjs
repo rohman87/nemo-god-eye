@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createEcccAirQualitySource } from './source.js';
+import {
+  createCompositeAirQualitySource,
+  createEcccAirQualitySource,
+  createSipongiAirQualitySource,
+} from './source.js';
 
 const NOW = Date.parse('2026-09-24T18:30:00Z');
 const HOUR = 60 * 60 * 1000;
@@ -194,4 +198,346 @@ test('a request that outlives its deadline is aborted', async (t) => {
   const pending = source.getSnapshot();
   t.mock.timers.tick(1_000);
   await assert.rejects(pending, /ECCC request timed out/);
+});
+
+const ispuRow = (overrides = {}) => ({
+  id: '-6.2088,106.8456',
+  name: 'Jakarta Pusat',
+  province: 'DKI Jakarta',
+  lat: -6.2088,
+  lon: 106.8456,
+  value: 42,
+  observedMs: NOW - HOUR,
+  ...overrides,
+});
+
+test('the SiPongi source requests the same-origin proxy and returns ISPU readings', async () => {
+  const calls = [];
+  const source = createSipongiAirQualitySource({
+    now: () => NOW,
+    fetchImpl: async (url, init) => {
+      calls.push([url, init]);
+      return json({
+        stations: [
+          ispuRow({ id: 'a', value: 30 }),
+          ispuRow({ id: 'b', value: 160 }),
+        ],
+      });
+    },
+  });
+  const readings = await source.getSnapshot();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], '/api/air-quality/indonesia');
+  assert.equal(calls[0][1].headers.Accept, 'application/json');
+  assert.deepEqual(
+    readings.map((reading) => [reading.id, reading.provider, reading.band]),
+    [
+      ['klhk:b', 'klhk', 'high'],
+      ['klhk:a', 'klhk', 'low'],
+    ],
+  );
+});
+
+test('the SiPongi source drops readings past the observation age limit', async () => {
+  const source = createSipongiAirQualitySource({
+    now: () => NOW,
+    fetchImpl: async () =>
+      json({
+        stations: [
+          ispuRow({ id: 'old', observedMs: NOW - 7 * HOUR }),
+          ispuRow({ id: 'new' }),
+        ],
+      }),
+  });
+  const readings = await source.getSnapshot();
+  assert.deepEqual(
+    readings.map((reading) => reading.stationId),
+    ['new'],
+  );
+});
+
+test('the SiPongi source rejects HTTP errors and malformed bodies', async () => {
+  await assert.rejects(
+    createSipongiAirQualitySource({
+      fetchImpl: async () => json({}, { status: 502 }),
+    }).getSnapshot(),
+    /ISPU HTTP 502/,
+  );
+  await assert.rejects(
+    createSipongiAirQualitySource({
+      fetchImpl: async () => json({ stations: 'no' }),
+    }).getSnapshot(),
+    /Malformed ISPU response/,
+  );
+});
+
+test('the SiPongi source refuses an oversized response', async () => {
+  await assert.rejects(
+    createSipongiAirQualitySource({
+      fetchImpl: async () =>
+        json({}, { headers: { 'content-length': String(2 * 1024 * 1024) } }),
+    }).getSnapshot(),
+    (error) => error.code === 'RESPONSE_TOO_LARGE',
+  );
+});
+
+test('the SiPongi source honours a caller abort and a deadline', async (t) => {
+  const already = new AbortController();
+  already.abort(new Error('before start'));
+  let calls = 0;
+  await assert.rejects(
+    createSipongiAirQualitySource({
+      fetchImpl: async () => {
+        calls += 1;
+        return json({ stations: [] });
+      },
+    }).getSnapshot({ signal: already.signal }),
+    /before start/,
+  );
+  assert.equal(calls, 0);
+
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const source = createSipongiAirQualitySource({
+    timeoutMs: 1_000,
+    fetchImpl: (_url, { signal }) =>
+      new Promise((_resolve, reject) =>
+        signal.addEventListener('abort', () => reject(signal.reason), {
+          once: true,
+        }),
+      ),
+  });
+  const pending = source.getSnapshot();
+  t.mock.timers.tick(1_000);
+  await assert.rejects(pending, /ISPU request timed out/);
+});
+
+const reading = (id, band, value, overrides = {}) => ({
+  id,
+  provider: 'eccc',
+  band,
+  value,
+  stationId: id,
+  observedMs: NOW - HOUR,
+  ...overrides,
+});
+const stub = (impl) => ({ getSnapshot: impl });
+const quiet = (t) => t.mock.method(console, 'warn', () => {});
+
+test('the composite source merges providers and sorts worst first', async () => {
+  const composite = createCompositeAirQualitySource(
+    [
+      stub(async () => [reading('a', 'low', 2), reading('b', 'high', 8)]),
+      stub(async () => [
+        reading('c', 'very-high', 250, { provider: 'klhk' }),
+        reading('d', 'moderate', 60, { provider: 'klhk' }),
+      ]),
+    ],
+    { now: () => NOW },
+  );
+  const merged = await composite.getSnapshot();
+  assert.deepEqual(
+    merged.map((r) => r.id),
+    ['c', 'b', 'd', 'a'],
+  );
+});
+
+test('the composite source passes the caller signal to every source', async () => {
+  const signals = [];
+  const caller = new AbortController();
+  const capture = async ({ signal }) => {
+    signals.push(signal);
+    return [];
+  };
+  await createCompositeAirQualitySource([stub(capture), stub(capture)], {
+    now: () => NOW,
+  }).getSnapshot({ signal: caller.signal });
+  assert.deepEqual(signals, [caller.signal, caller.signal]);
+});
+
+test('one provider failing on the first call does not blank the others', async (t) => {
+  const warn = quiet(t);
+  const composite = createCompositeAirQualitySource(
+    [
+      stub(async () => {
+        throw new Error('ECCC down');
+      }),
+      stub(async () => [reading('c', 'low', 10, { provider: 'klhk' })]),
+    ],
+    { now: () => NOW },
+  );
+  const merged = await composite.getSnapshot();
+  assert.deepEqual(
+    merged.map((r) => r.id),
+    ['c'],
+  );
+  assert.equal(warn.mock.callCount(), 1);
+});
+
+test('a provider that succeeded then fails has its last good readings reused', async (t) => {
+  quiet(t);
+  let fail = false;
+  const composite = createCompositeAirQualitySource(
+    [
+      stub(async () => {
+        if (fail) throw new Error('flaky');
+        return [reading('a', 'moderate', 4)];
+      }),
+      stub(async () => [reading('c', 'low', 10, { provider: 'klhk' })]),
+    ],
+    { now: () => NOW },
+  );
+  assert.equal((await composite.getSnapshot()).length, 2);
+  fail = true;
+  const merged = await composite.getSnapshot();
+  assert.deepEqual(
+    merged.map((r) => r.id),
+    ['a', 'c'],
+  );
+});
+
+test('reused readings older than the observation limit are dropped', async (t) => {
+  quiet(t);
+  let clock = NOW;
+  let fail = false;
+  const composite = createCompositeAirQualitySource(
+    [
+      stub(async () => {
+        if (fail) throw new Error('flaky');
+        return [
+          reading('old', 'low', 2, { observedMs: NOW - 2 * HOUR }),
+          reading('new', 'low', 1, { observedMs: NOW - HOUR }),
+        ];
+      }),
+      stub(async () => [reading('c', 'low', 10, { provider: 'klhk' })]),
+    ],
+    { now: () => clock },
+  );
+  await composite.getSnapshot();
+  fail = true;
+  // 'old' is 6h + 1ms old; 'new' is 5h + 1ms old and still allowed.
+  clock = NOW + 4 * HOUR + 1;
+  let merged = await composite.getSnapshot();
+  assert.deepEqual(merged.map((r) => r.id).sort(), ['c', 'new']);
+  // Everything from the failing provider has aged out; the other still serves.
+  clock = NOW + 6 * HOUR;
+  merged = await composite.getSnapshot();
+  assert.deepEqual(
+    merged.map((r) => r.id),
+    ['c'],
+  );
+  // Aged-out readings are not resurrected when the clock moves back.
+  clock = NOW;
+  merged = await composite.getSnapshot();
+  assert.deepEqual(
+    merged.map((r) => r.id),
+    ['c'],
+  );
+});
+
+test('every provider failing with nothing cached throws a neutral error', async (t) => {
+  quiet(t);
+  const composite = createCompositeAirQualitySource(
+    [
+      stub(async () => {
+        throw new Error('ECCC down');
+      }),
+      stub(async () => {
+        throw new Error('ISPU down');
+      }),
+    ],
+    { now: () => NOW },
+  );
+  await assert.rejects(composite.getSnapshot(), (error) => {
+    assert.equal(error.message, 'Air quality request failed');
+    assert.deepEqual(
+      error.cause.map((cause) => cause.message),
+      ['ECCC down', 'ISPU down'],
+    );
+    return true;
+  });
+});
+
+test('every provider failing still serves fresh cached readings', async (t) => {
+  quiet(t);
+  let fail = false;
+  const composite = createCompositeAirQualitySource(
+    [
+      stub(async () => {
+        if (fail) throw new Error('down');
+        return [reading('a', 'low', 2)];
+      }),
+    ],
+    { now: () => NOW },
+  );
+  await composite.getSnapshot();
+  fail = true;
+  assert.deepEqual(
+    (await composite.getSnapshot()).map((r) => r.id),
+    ['a'],
+  );
+});
+
+test('every provider failing with only expired cache throws', async (t) => {
+  quiet(t);
+  let clock = NOW;
+  let fail = false;
+  const composite = createCompositeAirQualitySource(
+    [
+      stub(async () => {
+        if (fail) throw new Error('down');
+        return [reading('a', 'low', 2)];
+      }),
+    ],
+    { now: () => clock },
+  );
+  await composite.getSnapshot();
+  fail = true;
+  clock = NOW + 6 * HOUR;
+  await assert.rejects(composite.getSnapshot(), /Air quality request failed/);
+});
+
+test('a provider returning a non-array counts as an empty success', async () => {
+  const composite = createCompositeAirQualitySource(
+    [stub(async () => null), stub(async () => [reading('a', 'low', 2)])],
+    { now: () => NOW },
+  );
+  assert.deepEqual(
+    (await composite.getSnapshot()).map((r) => r.id),
+    ['a'],
+  );
+});
+
+test('the composite source rejects when its signal is aborted', async () => {
+  const caller = new AbortController();
+  const composite = createCompositeAirQualitySource(
+    [
+      stub(async () => {
+        caller.abort(new Error('layer disabled'));
+        return [reading('a', 'low', 2)];
+      }),
+    ],
+    { now: () => NOW },
+  );
+  await assert.rejects(
+    composite.getSnapshot({ signal: caller.signal }),
+    /layer disabled/,
+  );
+});
+
+test('the composite source requires valid snapshot sources', () => {
+  for (const bad of [
+    [],
+    null,
+    undefined,
+    'sources',
+    [{}],
+    [stub(async () => []), { getSnapshot: 'no' }],
+    [null],
+  ])
+    assert.throws(
+      () => createCompositeAirQualitySource(bad),
+      (error) =>
+        error instanceof TypeError &&
+        /requires snapshot sources/.test(error.message),
+    );
 });

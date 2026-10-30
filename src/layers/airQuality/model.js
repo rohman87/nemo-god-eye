@@ -12,8 +12,8 @@
  * network can be added without retrofitting a shared numeric meaning that does
  * not exist.
  *
- * Only ECCC's AQHI is implemented here; `AIR_QUALITY_PROVIDERS` is the seam a
- * later provider registers against.
+ * Two providers are implemented — ECCC's AQHI and KLHK's ISPU (Indonesia);
+ * `AIR_QUALITY_PROVIDERS` is the seam a further provider registers against.
  */
 // A portable export (package.json): no i18n here. The labels stay English data;
 // the Weather card (index.js) shows them translated.
@@ -123,7 +123,68 @@ export const AIR_QUALITY_PROVIDERS = Object.freeze({
       Object.freeze({ id: 'very-high', max: Infinity }),
     ]),
   }),
+  // ISPU categories per PermenLHK P.14/2020: Baik <= 50, Sedang <= 100,
+  // Tidak Sehat <= 200. Sangat Tidak Sehat (<= 300) and Berbahaya (> 300) both
+  // map to very-high — the shared bands have no finer top step.
+  klhk: Object.freeze({
+    id: 'klhk',
+    scale: 'ISPU',
+    label: msg('Air quality'),
+    network: 'KLHK (Indonesian Ministry of Environment and Forestry) · SiPongi',
+    coverage: msg('Indonesia only · KLHK ISPU network'),
+    bands: Object.freeze([
+      Object.freeze({ id: 'low', max: 50 }),
+      Object.freeze({ id: 'moderate', max: 100 }),
+      Object.freeze({ id: 'high', max: 200 }),
+      Object.freeze({ id: 'very-high', max: Infinity }),
+    ]),
+  }),
 });
+
+/** Coverage line for the layer as a whole, across every registered provider. */
+export const AIR_QUALITY_COVERAGE = msg(
+  'Indonesia and Canada only · KLHK ISPU, ECCC AQHI',
+);
+
+/** Position of a band id in ascending severity, or -1 when unknown. */
+export function bandRank(bandId) {
+  return AIR_QUALITY_BANDS.findIndex((band) => band.id === bandId);
+}
+
+/**
+ * Where a value sits inside its provider band, 0..1. This makes readings on
+ * different scales comparable within a shared band. The open top band is
+ * treated as one step as wide as the band below it.
+ * @param {string} providerId
+ * @param {number} value
+ * @returns {number}
+ */
+export function bandPosition(providerId, value) {
+  const bands = AIR_QUALITY_PROVIDERS[String(providerId ?? '')]?.bands;
+  if (!bands || !Number.isFinite(value)) return 0;
+  const index = bands.findIndex((band) => value <= band.max);
+  if (index < 0) return 1;
+  const lo = index === 0 ? 0 : bands[index - 1].max;
+  let hi = bands[index].max;
+  if (!Number.isFinite(hi))
+    hi = lo + (lo - (index > 1 ? bands[index - 2].max : 0));
+  if (!(hi > lo)) return 1;
+  return Math.min(1, Math.max(0, (value - lo) / (hi - lo)));
+}
+
+/**
+ * Sort comparator, worst first. Values on different scales are not comparable
+ * (AQHI 10 is not ISPU 10), so the shared band decides first, then the
+ * position inside that band, then the raw value.
+ */
+export function compareReadingSeverity(a, b) {
+  return (
+    bandRank(b.band) - bandRank(a.band) ||
+    bandPosition(b.provider, b.value) - bandPosition(a.provider, a.value) ||
+    b.value - a.value ||
+    String(a.stationId).localeCompare(String(b.stationId))
+  );
+}
 
 /** Band descriptor for an id, or null. */
 export function airQualityBandById(bandId) {
@@ -284,9 +345,7 @@ export function normalizeAqhiObservations(geojson, stations, now = Date.now()) {
       note: String(properties.special_notes_en || '').trim() || null,
     });
   }
-  return [...newest.values()].sort(
-    (a, b) => b.value - a.value || a.stationId.localeCompare(b.stationId),
-  );
+  return [...newest.values()].sort(compareReadingSeverity);
 }
 
 /**
@@ -299,7 +358,9 @@ export function createAirQualityOverlayEntry({
   position,
   title,
   accent,
+  band,
   value,
+  provider,
 }) {
   return {
     id: String(id),
@@ -308,7 +369,13 @@ export function createAirQualityOverlayEntry({
     title,
     accent,
     // Worse air wins the label budget — the reading people need to see first.
-    priority: Math.round(Number(value) || 0) * 1000,
+    // Band first, since values on different scales are not comparable; then
+    // the position inside the band when the provider is known.
+    priority:
+      (bandRank(band) + 1) * 1000 +
+      (provider
+        ? Math.round(bandPosition(provider, Number(value)) * 999)
+        : Math.min(999, Math.max(0, Math.round(Number(value) || 0)))),
     collisionGroup: 'ambient-label',
     paintLane: 'ambient-label',
     interactive: false,
@@ -365,10 +432,7 @@ export function readingsInView(readings, rect, limit = 5) {
           ? reading.lon >= rect.west && reading.lon <= rect.east
           : reading.lon >= rect.west || reading.lon <= rect.east;
       });
-  return inside
-    .slice()
-    .sort((a, b) => b.value - a.value || a.stationId.localeCompare(b.stationId))
-    .slice(0, cap);
+  return inside.slice().sort(compareReadingSeverity).slice(0, cap);
 }
 
 /**

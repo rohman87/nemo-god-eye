@@ -131,6 +131,15 @@ export function applicationViewerOptions(creditContainer) {
 export function createApplicationViewer({ container, creditContainer }) {
   if (!container || !creditContainer)
     throw new TypeError('Viewer and credit containers are required');
+  // Open on Indonesia instead of the whole globe; must be set before the
+  // Viewer is constructed because the initial camera reads it once.
+  Cesium.Camera.DEFAULT_VIEW_RECTANGLE = Cesium.Rectangle.fromDegrees(
+    94.9,
+    -11.1,
+    141.1,
+    6.1,
+  );
+  Cesium.Camera.DEFAULT_VIEW_FACTOR = 0;
   const viewer = new Cesium.Viewer(
     container,
     applicationViewerOptions(creditContainer),

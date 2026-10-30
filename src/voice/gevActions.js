@@ -1788,6 +1788,10 @@ export async function controlCctv(dataManager, args = {}, styleManager = null) {
 
 const RADIO_COUNTRY_CENTERS = new Map([
   // i18n-ignore: place name in tool data
+  ['id', { lat: -2.5, lon: 118.0, country: 'ID', label: 'Indonesia' }],
+  // i18n-ignore: place name in tool data
+  ['indonesia', { lat: -2.5, lon: 118.0, country: 'ID', label: 'Indonesia' }],
+  // i18n-ignore: place name in tool data
   ['us', { lat: 39.8, lon: -98.6, country: 'US', label: 'United States' }],
   // i18n-ignore: place name in tool data
   ['usa', { lat: 39.8, lon: -98.6, country: 'US', label: 'United States' }],
@@ -4377,6 +4381,7 @@ function inferCountry(latitude, longitude) {
     { name: 'Turkmenistan', south: 35.0, north: 42.9, west: 52.0, east: 66.8 },
     { name: 'Azerbaijan', south: 38.3, north: 41.9, west: 44.6, east: 50.8 },
     { name: 'Armenia', south: 38.7, north: 41.4, west: 43.4, east: 46.7 },
+    { name: 'Indonesia', south: -11.1, north: 6.1, west: 94.9, east: 141.1 },
     { name: 'Japan', south: 24.0, north: 46.5, west: 122.0, east: 146.5 },
     { name: 'South Korea', south: 33.0, north: 38.8, west: 124.0, east: 132.0 },
     { name: 'North Korea', south: 37.5, north: 43.2, west: 124.0, east: 131.0 },

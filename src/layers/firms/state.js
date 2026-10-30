@@ -27,9 +27,16 @@ export function createFirmsState({ services, config }) {
 
   layerState._loading = false;
 
-  /** True when the proxy answered 503 {error:'no_key'} — FIRMS_MAP_KEY unset. */
+  /**
+   * True when the proxy answered 503 {error:'no_key'}. The current proxy serves
+   * a keyless South-East Asia fallback instead, so this is a defensive state.
+   */
 
   layerState._keyRequired = false;
+
+  /** Coverage of the served payload: 'world' (keyed) or 'southeast-asia' (keyless regional). */
+
+  layerState._coverage = 'world';
 
   /** True when the proxy served a cached payload past TTL (upstream failing). */
 

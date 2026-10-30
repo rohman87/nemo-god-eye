@@ -9,7 +9,10 @@ import {
   airQualityColor,
   aqhiDisplayValue,
   bandForValue,
+  bandPosition,
   bandRiskText,
+  compareReadingSeverity,
+  createAirQualityOverlayEntry,
   mapAnalystRecord,
   normalizeAqhiObservations,
   normalizeAqhiStations,
@@ -266,4 +269,87 @@ test('analyst records are JSON-safe and name the provider and scale', () => {
   for (const [key, value] of Object.entries(empty)) {
     assert.notEqual(value, undefined, `${key} must not be undefined`);
   }
+});
+
+test('bandPosition places a value inside its provider band', () => {
+  // ECCC moderate runs 3..6, so 5 is two thirds of the way up.
+  assert.ok(Math.abs(bandPosition('eccc', 5) - 2 / 3) < 1e-9);
+  // ISPU moderate runs 50..100.
+  assert.equal(bandPosition('klhk', 75), 0.5);
+  assert.equal(bandPosition('klhk', 100), 1);
+  assert.equal(bandPosition('klhk', 0), 0);
+});
+
+test('bandPosition treats the open top band as as wide as the one below', () => {
+  assert.equal(bandPosition('klhk', 300), 1);
+  assert.equal(bandPosition('klhk', 250), 0.5);
+  assert.equal(bandPosition('klhk', 900), 1);
+  assert.equal(bandPosition('eccc', 12), 0.5);
+  assert.equal(bandPosition('eccc', 14), 1);
+});
+
+test('bandPosition is 0 for an unknown provider or a non-finite value', () => {
+  assert.equal(bandPosition('nope', 50), 0);
+  assert.equal(bandPosition(undefined, 50), 0);
+  assert.equal(bandPosition('klhk', Number.NaN), 0);
+  assert.equal(bandPosition('klhk', Infinity), 0);
+});
+
+test('compareReadingSeverity ranks by band position across scales', () => {
+  const aqhi6 = {
+    provider: 'eccc',
+    band: 'moderate',
+    value: 6,
+    stationId: 'a',
+  };
+  const ispu60 = {
+    provider: 'klhk',
+    band: 'moderate',
+    value: 60,
+    stationId: 'b',
+  };
+  // Raw 60 > 6, but AQHI 6 is the top of its band and ISPU 60 the bottom.
+  assert.ok(compareReadingSeverity(aqhi6, ispu60) < 0);
+  assert.ok(compareReadingSeverity(ispu60, aqhi6) > 0);
+  assert.deepEqual([ispu60, aqhi6].sort(compareReadingSeverity), [
+    aqhi6,
+    ispu60,
+  ]);
+});
+
+test('compareReadingSeverity ranks the band first, then the value, then the station id', () => {
+  const low = { provider: 'klhk', band: 'low', value: 50, stationId: 'x' };
+  const high = { provider: 'eccc', band: 'high', value: 7, stationId: 'y' };
+  assert.ok(compareReadingSeverity(high, low) < 0);
+  const same = (stationId) => ({
+    provider: 'klhk',
+    band: 'low',
+    value: 10,
+    stationId,
+  });
+  assert.ok(compareReadingSeverity(same('a'), same('b')) < 0);
+  assert.equal(compareReadingSeverity(same('a'), same('a')), 0);
+});
+
+test('createAirQualityOverlayEntry prioritises by band position when the provider is known', () => {
+  const entry = (overrides) =>
+    createAirQualityOverlayEntry({
+      id: 'x',
+      position: null,
+      title: 't',
+      accent: '#fff',
+      band: 'moderate',
+      value: 75,
+      ...overrides,
+    });
+  assert.equal(entry({ provider: 'klhk' }).priority, 2000 + 500);
+  assert.equal(entry({ provider: 'eccc', value: 5 }).priority, 2000 + 666);
+  // No provider: the raw value, capped to the band's 999 slots.
+  assert.equal(entry({}).priority, 2000 + 75);
+  assert.equal(entry({ value: 5000 }).priority, 2000 + 999);
+  // Worse band always outranks a better one, whatever the position.
+  assert.ok(
+    entry({ band: 'high', provider: 'klhk', value: 101 }).priority >
+      entry({ provider: 'klhk', value: 100 }).priority,
+  );
 });

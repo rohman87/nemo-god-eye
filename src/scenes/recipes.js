@@ -639,8 +639,8 @@ const PUBLIC_SCENE_RECIPES = [
     },
     cameraPath: [
       {
-        lat: 20.0,
-        lon: -30.0,
+        lat: -6.13,
+        lon: 106.66,
         alt: 19000000,
         heading: 25,
         pitch: -65,
@@ -649,8 +649,8 @@ const PUBLIC_SCENE_RECIPES = [
         hold: 1,
       },
       {
-        lat: 46.0,
-        lon: 2.0,
+        lat: -8.75,
+        lon: 115.17,
         alt: 8000000,
         heading: 40,
         pitch: -52,
@@ -659,8 +659,8 @@ const PUBLIC_SCENE_RECIPES = [
         hold: 1,
       },
       {
-        lat: 35.0,
-        lon: 139.0,
+        lat: -7.38,
+        lon: 112.79,
         alt: 4200000,
         heading: 22,
         pitch: -46,
@@ -669,8 +669,8 @@ const PUBLIC_SCENE_RECIPES = [
         hold: 1,
       },
       {
-        lat: 37.6,
-        lon: -122.4,
+        lat: -5.06,
+        lon: 119.55,
         alt: 1700000,
         heading: 8,
         pitch: -40,
@@ -679,8 +679,8 @@ const PUBLIC_SCENE_RECIPES = [
         hold: 1,
       },
       {
-        lat: 0.0,
-        lon: -20.0,
+        lat: -2.5,
+        lon: 118.0,
         alt: 12000000,
         heading: -10,
         pitch: -70,
@@ -795,8 +795,8 @@ const PUBLIC_SCENE_RECIPES = [
     },
     cameraPath: [
       {
-        lat: 37.0,
-        lon: -121.0,
+        lat: -1.5,
+        lon: 113.9,
         alt: 5200000,
         heading: 20,
         pitch: -62,
@@ -805,8 +805,8 @@ const PUBLIC_SCENE_RECIPES = [
         hold: 1,
       },
       {
-        lat: 35.7,
-        lon: 140.0,
+        lat: 0.5,
+        lon: 101.4,
         alt: 3100000,
         heading: 5,
         pitch: -55,
@@ -815,8 +815,8 @@ const PUBLIC_SCENE_RECIPES = [
         hold: 1,
       },
       {
-        lat: -36.8,
-        lon: 174.7,
+        lat: -3.0,
+        lon: 104.7,
         alt: 2600000,
         heading: -12,
         pitch: -50,
@@ -825,8 +825,8 @@ const PUBLIC_SCENE_RECIPES = [
         hold: 1,
       },
       {
-        lat: 38.0,
-        lon: -10.0,
+        lat: -2.5,
+        lon: 118.0,
         alt: 9000000,
         heading: 12,
         pitch: -70,
@@ -863,8 +863,8 @@ const PUBLIC_SCENE_RECIPES = [
     },
     cameraPath: [
       {
-        lat: 40.73,
-        lon: -74.0,
+        lat: -6.1754,
+        lon: 106.8272,
         alt: 1500000,
         heading: 25,
         pitch: -44,
@@ -873,8 +873,8 @@ const PUBLIC_SCENE_RECIPES = [
         hold: 1,
       },
       {
-        lat: 40.73,
-        lon: -74.0,
+        lat: -6.2146,
+        lon: 106.8227,
         alt: 550000,
         heading: 58,
         pitch: -36,
@@ -883,8 +883,8 @@ const PUBLIC_SCENE_RECIPES = [
         hold: 1,
       },
       {
-        lat: 40.73,
-        lon: -74.0,
+        lat: -6.1352,
+        lon: 106.8133,
         alt: 260000,
         heading: 102,
         pitch: -33,
@@ -893,8 +893,8 @@ const PUBLIC_SCENE_RECIPES = [
         hold: 1,
       },
       {
-        lat: 34.05,
-        lon: -118.24,
+        lat: -7.2575,
+        lon: 112.7521,
         alt: 1200000,
         heading: 45,
         pitch: -42,
@@ -903,8 +903,8 @@ const PUBLIC_SCENE_RECIPES = [
         hold: 1,
       },
       {
-        lat: 51.5,
-        lon: -0.12,
+        lat: -6.9175,
+        lon: 107.6191,
         alt: 1200000,
         heading: 22,
         pitch: -44,
@@ -940,8 +940,8 @@ const PUBLIC_SCENE_RECIPES = [
     },
     cameraPath: [
       {
-        lat: 35.68,
-        lon: 139.76,
+        lat: -6.2088,
+        lon: 106.8456,
         alt: 280000,
         heading: 30,
         pitch: -26,
@@ -950,8 +950,8 @@ const PUBLIC_SCENE_RECIPES = [
         hold: 1,
       },
       {
-        lat: 35.68,
-        lon: 139.76,
+        lat: -6.2088,
+        lon: 106.8456,
         alt: 900000,
         heading: 26,
         pitch: -38,
@@ -960,8 +960,8 @@ const PUBLIC_SCENE_RECIPES = [
         hold: 1,
       },
       {
-        lat: 35.68,
-        lon: 139.76,
+        lat: -6.2088,
+        lon: 106.8456,
         alt: 3800000,
         heading: 18,
         pitch: -52,
@@ -970,8 +970,8 @@ const PUBLIC_SCENE_RECIPES = [
         hold: 1,
       },
       {
-        lat: 20.0,
-        lon: 110.0,
+        lat: -2.5,
+        lon: 118.0,
         alt: 9500000,
         heading: 8,
         pitch: -66,

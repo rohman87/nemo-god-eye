@@ -9,6 +9,44 @@ const catalogWith = (fires) =>
     services: { fires: { getSnapshot: async () => ({ fires }) } },
   });
 
+const catalogWithSnapshot = (snapshot) =>
+  composeCatalog({
+    tools: [getActiveFires],
+    services: { fires: { getSnapshot: async () => snapshot } },
+  });
+const callFires = (snapshot) =>
+  catalogWithSnapshot(snapshot).call('get_active_fires', {
+    area: { bbox: [120, 23, 122, 25] },
+  });
+const fire = {
+  lat: 24,
+  lon: 121,
+  frp: 5,
+  acqDate: '2026-01-01',
+  acqTime: '45',
+};
+
+test('a southeast-asia snapshot notes the keyless coverage limit', async () => {
+  const result = await callFires({
+    fires: [fire],
+    coverage: 'southeast-asia',
+  });
+  assert.equal(result.data.coverage, 'southeast-asia');
+  assert.match(result.summary, /keyless feed covers Southeast Asia only/);
+});
+
+test('a world snapshot has no coverage note', async () => {
+  const result = await callFires({ fires: [fire], coverage: 'world' });
+  assert.equal(result.data.coverage, 'world');
+  assert.doesNotMatch(result.summary, /Southeast Asia/);
+});
+
+test('a snapshot without coverage defaults to world with no note', async () => {
+  const result = await callFires({ fires: [fire] });
+  assert.equal(result.data.coverage, 'world');
+  assert.doesNotMatch(result.summary, /Southeast Asia/);
+});
+
 test('a fire acquired at 00:45 UTC reads as 00:45, not "45"', async () => {
   const result = await catalogWith([
     { lat: 24, lon: 121, frp: 5, acqDate: '2026-01-01', acqTime: '45' },

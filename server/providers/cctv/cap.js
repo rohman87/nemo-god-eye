@@ -23,11 +23,13 @@ export function resolveCatalogCap(raw) {
  * exceed the catalog cap, the cap is filled ROUND-ROBIN — one camera from
  * each pack per turn, in each pack's own order — so a lowered
  * CCTV_MAX_SOURCES thins every region a little instead of deleting whichever
- * pack happened to be appended last. Duplicate ids resolve last-pack-wins so
+ * pack happened to be appended last. Packs flagged `priority` are filled
+ * first (round-robin among themselves); only the remaining cap is shared
+ * round-robin by the non-priority packs. Duplicate ids resolve last-pack-wins so
  * file/env overrides keep replacing live records; the record is then counted
  * against the pack that won it.
  *
- * @param {Array<{name:string, sources:Array<object>}>} packs - Normalized
+ * @param {Array<{name:string, priority?:boolean, sources:Array<object>}>} packs - Normalized
  *   packs in merge order (earlier packs lose duplicate ids to later ones).
  * @param {number} maxCount - Catalog cap.
  * @returns {{sources:Array<object>, packs:Array<{name:string, offered:number, kept:number}>}}
@@ -48,6 +50,7 @@ export function allocateSourceCap(packs, maxCount) {
     queue: pack.sources.filter(
       (source) => source?.id && owner.get(source.id)?.source === source,
     ),
+    priority: Boolean(pack.priority),
     next: 0,
     kept: 0,
   }));
@@ -61,15 +64,22 @@ export function allocateSourceCap(packs, maxCount) {
       lane.kept = lane.queue.length;
     }
   } else {
-    while (sources.length < limit) {
-      for (const lane of lanes) {
-        if (sources.length >= limit) break;
-        if (lane.next >= lane.queue.length) continue;
-        sources.push(lane.queue[lane.next]);
-        lane.next += 1;
-        lane.kept += 1;
+    const fill = (group) => {
+      while (sources.length < limit) {
+        let progressed = false;
+        for (const lane of group) {
+          if (sources.length >= limit) break;
+          if (lane.next >= lane.queue.length) continue;
+          sources.push(lane.queue[lane.next]);
+          lane.next += 1;
+          lane.kept += 1;
+          progressed = true;
+        }
+        if (!progressed) break;
       }
-    }
+    };
+    fill(lanes.filter((lane) => lane.priority));
+    fill(lanes.filter((lane) => !lane.priority));
   }
   return {
     sources,

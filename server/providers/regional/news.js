@@ -63,9 +63,9 @@ async function fetchRegionalNews(place) {
     return { status: 'unavailable', query: null, articles: [], source: null };
   const rssParams = new URLSearchParams({
     q: String(query).replace(/["\\]/g, ' ').trim(),
-    hl: 'en-US',
-    gl: 'US',
-    ceid: 'US:en',
+    hl: 'en-ID',
+    gl: 'ID',
+    ceid: 'ID:en',
   });
   try {
     const xml = await fetchRegionalText(

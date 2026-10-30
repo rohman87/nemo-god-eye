@@ -266,11 +266,19 @@ const layers = [
   },
   {
     id: 'air-quality',
-    aliases: ['air quality', 'aqhi', 'smog', 'air pollution'],
+    aliases: [
+      'air quality',
+      'aqhi',
+      'ispu',
+      'smog',
+      'air pollution',
+      'kualitas udara',
+      'polusi udara',
+    ],
     context: false,
     query: {
       fields: {
-        value: ['n', 'AQHI'],
+        value: ['n', 'index on its own scale (ISPU or AQHI)'],
         band: ['t'],
         scale: ['t'],
         provider: ['t'],

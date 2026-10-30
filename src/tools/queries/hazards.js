@@ -113,7 +113,13 @@ export const getActiveFires = defineTool({
     const missing = (snapshot.sources || [])
       .filter((source) => source?.ok === false)
       .map((source) => source.source);
+    // Keyless, the proxy serves NASA's South-East Asia files only: a count of
+    // zero elsewhere means "not covered", not "no fires".
+    const coverage = snapshot.coverage ?? 'world';
     const notes = [
+      ...(coverage === 'southeast-asia'
+        ? ['keyless feed covers Southeast Asia only']
+        : []),
       ...(stale ? ['data may be stale'] : []),
       ...(missing.length ? [`no data from ${missing.join(', ')}`] : []),
     ];
@@ -124,6 +130,7 @@ export const getActiveFires = defineTool({
       data: {
         view: suggestView(services, { area, layers: ['local-firms'] }),
         stale,
+        coverage,
         missing_sources: missing,
         fetched_at: isoTime(snapshot.fetchedAt),
         ...result,

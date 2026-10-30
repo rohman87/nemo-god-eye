@@ -1,5 +1,11 @@
 import { readResponseJsonCapped } from '../../sources/httpBody.js';
-import { normalizeAqhiStations, normalizeAqhiObservations } from './model.js';
+import {
+  OBSERVATION_MAX_AGE_MS,
+  compareReadingSeverity,
+  normalizeAqhiStations,
+  normalizeAqhiObservations,
+} from './model.js';
+import { ispuReadings } from './ispu.js';
 
 // A portable export (package.json): no i18n here. Failures stay English data;
 // the Layers panel and the Weather card show them translated.
@@ -8,6 +14,10 @@ const msg = (text) => text;
 const COLLECTIONS_ROOT = 'https://api.weather.gc.ca/collections';
 const STATIONS_URL = `${COLLECTIONS_ROOT}/aqhi-stations/items`;
 const OBSERVATIONS_URL = `${COLLECTIONS_ROOT}/aqhi-observations-realtime/items`;
+/** Same-origin proxy of KLHK's SiPongi AQMS feed, which sends no CORS header. */
+const ISPU_URL = '/api/air-quality/indonesia';
+/** The proxy returns ~108 stations, a few tens of KB. */
+const ISPU_MAX_RESPONSE_BYTES = 1024 * 1024;
 
 /** Comfortably above Canada's ~134 stations without inviting a huge page. */
 const STATION_LIMIT = 500;
@@ -105,6 +115,111 @@ export function createEcccAirQualitySource({
       if (!readings)
         throw new Error(msg('Malformed AQHI observation response'));
       return readings;
+    },
+  };
+}
+
+/**
+ * Request and validate a complete KLHK ISPU snapshot from the same-origin
+ * proxy. The proxy owns upstream caching, so this source is stateless.
+ *
+ * @param {object} [options]
+ * @param {Function} [options.fetchImpl] - Injected fetch, for tests.
+ * @param {() => number} [options.now] - Clock seam, for tests.
+ * @param {number} [options.timeoutMs=15000] - Deadline for the request.
+ * @returns {{getSnapshot: Function}}
+ */
+export function createSipongiAirQualitySource({
+  fetchImpl = (...args) => globalThis.fetch(...args),
+  now = () => Date.now(),
+  timeoutMs = 15_000,
+} = {}) {
+  return {
+    async getSnapshot({ signal } = {}) {
+      const controller = new AbortController();
+      const abort = () => controller.abort(signal.reason);
+      signal?.addEventListener('abort', abort, { once: true });
+      const timer = setTimeout(
+        () => controller.abort(new Error(msg('ISPU request timed out'))),
+        timeoutMs,
+      );
+      try {
+        signal?.throwIfAborted();
+        const response = await fetchImpl(ISPU_URL, {
+          headers: { Accept: 'application/json' },
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(`ISPU HTTP ${response.status}`);
+        const payload = await readResponseJsonCapped(
+          response,
+          ISPU_MAX_RESPONSE_BYTES,
+          controller.signal,
+        );
+        const readings = ispuReadings(payload, now());
+        if (!readings) throw new Error(msg('Malformed ISPU response'));
+        return readings;
+      } finally {
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', abort);
+      }
+    },
+  };
+}
+
+/**
+ * Merge several air-quality sources into one snapshot. A provider that fails
+ * does not blank the others, and does not blank itself either: its last good
+ * readings stand in, minus any that have aged past OBSERVATION_MAX_AGE_MS.
+ * Only when every provider fails with nothing to fall back on does the
+ * snapshot fail, with a neutral error that names no single provider.
+ *
+ * @param {Array<{getSnapshot: Function}>} sources
+ * @param {{now?: Function}} [options] - Clock seam for tests.
+ * @returns {{getSnapshot: Function}}
+ */
+export function createCompositeAirQualitySource(
+  sources,
+  { now = Date.now } = {},
+) {
+  if (
+    !Array.isArray(sources) ||
+    sources.length === 0 ||
+    sources.some((source) => typeof source?.getSnapshot !== 'function')
+  )
+    throw new TypeError('Composite air quality requires snapshot sources');
+  const lastGood = sources.map(() => null);
+  return {
+    async getSnapshot({ signal } = {}) {
+      const results = await Promise.allSettled(
+        sources.map((source) => source.getSnapshot({ signal })),
+      );
+      signal?.throwIfAborted();
+      const at = now();
+      const merged = [];
+      const failures = [];
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          const readings = Array.isArray(result.value) ? result.value : [];
+          lastGood[index] = readings;
+          merged.push(...readings);
+          return;
+        }
+        failures.push(result.reason);
+        console.warn(
+          '[Data:AirQuality] Provider failed:',
+          result.reason?.message || result.reason,
+        );
+        const fallback = (lastGood[index] || []).filter(
+          (reading) => at - reading.observedMs <= OBSERVATION_MAX_AGE_MS,
+        );
+        lastGood[index] = fallback.length ? fallback : null;
+        merged.push(...fallback);
+      });
+      if (failures.length === results.length && merged.length === 0)
+        throw new Error(msg('Air quality request failed'), {
+          cause: failures,
+        });
+      return merged.sort(compareReadingSeverity);
     },
   };
 }

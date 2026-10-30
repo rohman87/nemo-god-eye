@@ -3732,8 +3732,8 @@ export function loadJakartaSourcesFromOpenData({
     const lat = typeof item.lat === 'number' ? item.lat : NaN;
     const lon = typeof item.lon === 'number' ? item.lon : NaN;
     if (!isPlausibleLatLon(lat, lon)) continue;
-    // Jakarta metropolitan coordinate sanity bounds
-    if (lat < -6.5 || lat > -5.9 || lon < 106.5 || lon > 107.2) continue;
+    // Jabodetabek coordinate sanity bounds (west edge reaches the Tangerang toll roads)
+    if (lat < -6.5 || lat > -5.9 || lon < 106.2 || lon > 107.2) continue;
 
     const streamUrl = indonesiaCameraUrl(
       typeof item.url === 'string' ? item.url : item.snapshotUrl,
@@ -4068,7 +4068,7 @@ export function loadDepokSourcesFromOpenData({
         item.license ||
           'Public municipal traffic camera — Dinas Perhubungan Kota Depok',
       ),
-      poseSource: item.poseSource || 'curated',
+      poseSource: item.poseSource || (hasHeading ? 'curated' : undefined),
     });
   }
   if (pinDropped > 0) {
@@ -4182,7 +4182,7 @@ export function loadBogorSourcesFromOpenData({
         item.license ||
           'Public municipal traffic camera — Diskominfo Kota Bogor (BSW)',
       ),
-      poseSource: item.poseSource || 'curated',
+      poseSource: item.poseSource || (hasHeading ? 'curated' : undefined),
     });
   }
   if (pinDropped > 0) {

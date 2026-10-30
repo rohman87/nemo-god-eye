@@ -177,6 +177,12 @@ export const DATA_CREDITS = [
       '· <a href="https://eccc-msc.github.io/open-data/licence/readme_en/" target="_blank" rel="noopener">ECCC Data Servers End-use Licence</a>',
   },
   {
+    key: 'klhk-ispu',
+    html:
+      'Air quality (ISPU): Kementerian Lingkungan Hidup dan Kehutanan (KLHK) — SiPongi+ AQMS ' +
+      '(<a href="https://sipongi.menlhk.go.id/" target="_blank" rel="noopener">sipongi.menlhk.go.id</a>)',
+  },
+  {
     key: 'overture-military-names',
     html: 'Military area names: <a href="https://overturemaps.org" target="_blank" rel="noopener">Overture Maps Foundation</a> (ODbL)',
   },

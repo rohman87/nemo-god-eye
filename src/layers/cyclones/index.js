@@ -30,8 +30,33 @@ const utc = (value) =>
     ? `${formatUtcDayMonth(value).replace('-', '-\u2060')}\u00a0${value.slice(11, 16)}\u00a0UTC`
     : t('Unavailable');
 const COVERAGE = msg(
-  'Atlantic and eastern/central North Pacific; not worldwide cyclone coverage.',
+  'Atlantic, East/Central Pacific, Northwest Pacific, Indian Ocean & Southern Hemisphere (Indonesian region); not worldwide cyclone coverage.',
 );
+// Indonesia's centre: the storm nearest to it is auto-selected first.
+const INDONESIA_CENTER = { latitude: -2.5, longitude: 118 };
+// Equirectangular distance (squared degrees); enough to rank nearby storms.
+const distanceToIndonesia = (storm) => {
+  const lat = storm.position?.latitude;
+  const lon = storm.position?.longitude;
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return Infinity;
+  const dLat = lat - INDONESIA_CENTER.latitude;
+  // Wrap to 0..180 so 0..360 longitudes and the antimeridian both measure right.
+  let dLon = Math.abs(((lon - INDONESIA_CENTER.longitude + 540) % 360) - 180);
+  dLon *= Math.cos(((lat + INDONESIA_CENTER.latitude) / 2) * (Math.PI / 180));
+  return dLat * dLat + dLon * dLon;
+};
+const nearestToIndonesia = (storms) => {
+  let best = storms[0];
+  let bestDistance = best ? distanceToIndonesia(best) : Infinity;
+  for (const storm of storms) {
+    const distance = distanceToIndonesia(storm);
+    if (distance < bestDistance) {
+      best = storm;
+      bestDistance = distance;
+    }
+  }
+  return best;
+};
 // The server sends the same English coverage (server/providers/cyclones.js);
 // data stays English and is translated here, where it is shown.
 const coverageText = (coverage) =>
@@ -275,7 +300,7 @@ export function createCyclonesLayer({
           select(
             selectionIntent === 'cleared'
               ? null
-              : snapshot.storms[0]?.id || null,
+              : nearestToIndonesia(snapshot.storms)?.id || null,
           );
         else rendering.setSelection(selectedId);
         return true;
@@ -390,8 +415,8 @@ export function createCyclonesLayer({
       const controls = {
         readout: true,
         summary: {
-          label: t('Cyclones · NHC / CPHC'),
-          coverage: t('Atlantic · E/C Pacific'),
+          label: t('Cyclones · JTWC / NHC'),
+          coverage: t('Indonesia · Pacific · Indian Ocean'),
           compact: stormCount
             ? storm
               ? t('{storms} · {name} selected', {

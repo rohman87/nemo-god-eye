@@ -187,8 +187,13 @@ export function createHlsPuller({
       entry.chunklistUrl = base;
       const segments = parseHlsMedia(text, base, limits.segments);
       const newest = segments.at(-1)?.seq ?? -1;
+      // Some agency encoders (Depok Dishub) publish a finite clip that ends in
+      // #EXT-X-ENDLIST and is overwritten in place. Once its media time has
+      // played out, ingest it again so the session keeps a moving window.
+      const finite = text.includes('#EXT-X-ENDLIST');
       const restarted =
         newest < entry.upstreamNewest ||
+        (finite && Date.now() >= entry.replayAt) ||
         segments.some((segment) => {
           const prior = entry.upstream.get(segment.seq);
           return prior && prior !== segment.uri;
@@ -198,6 +203,7 @@ export function createHlsPuller({
         entry.pendingDiscontinuity = true;
       }
       entry.upstreamNewest = newest;
+      let ingested = false;
       for (const segment of segments) {
         if (entry.stopping) return;
         if (entry.upstream.has(segment.seq)) continue;
@@ -230,7 +236,12 @@ export function createHlsPuller({
         while (entry.upstream.size > limits.segments * 2)
           entry.upstream.delete(entry.upstream.keys().next().value);
         entry.bytes += body.length;
+        ingested = true;
       }
+      if (finite && ingested)
+        entry.replayAt =
+          Date.now() +
+          segments.reduce((sum, segment) => sum + segment.duration, 0) * 1000;
       entry.failures = 0;
     } catch {
       entry.chunklistUrl = null;
@@ -276,6 +287,7 @@ export function createHlsPuller({
       upstream: new Map(),
       leases: new Map(),
       upstreamNewest: -1,
+      replayAt: Infinity,
       pendingDiscontinuity: false,
       discontinuitiesRemoved: 0,
     };

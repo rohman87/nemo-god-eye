@@ -1777,6 +1777,12 @@ test('voice Radio resolves Austin and exposes semantic selection, volume, pause,
   const austin = knownRadioLocation('', 'austin');
   assert.ok(Math.abs(austin.lat - 30.31) < 0.1);
   assert.ok(Math.abs(austin.lon + 97.75) < 0.1);
+  for (const query of ['id', 'Indonesia']) {
+    const indonesia = knownRadioLocation(query);
+    assert.equal(indonesia.lat, -2.5);
+    assert.equal(indonesia.lon, 118.0);
+    assert.equal(indonesia.country, 'ID');
+  }
 
   let enabled = false;
   const calls = [];
