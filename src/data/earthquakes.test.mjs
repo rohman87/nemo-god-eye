@@ -40,6 +40,11 @@ test('earthquake analyst record: full record maps every contract field', () => {
     lon: -150.41,
     timeMs: 1_753_600_000_000,
     place: '42 km SW of Anchorage, Alaska',
+    provider: null,
+    tsunami: false,
+    felt: false,
+    potential: null,
+    feltReport: null,
   });
 });
 

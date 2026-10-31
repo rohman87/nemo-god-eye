@@ -46,6 +46,7 @@ const PANEL_GROUPS = [
       'military',
       'local-adsb',
       'ais-live-vessels',
+      'fishing-activity',
       'traffic',
       'transit',
       'bikeshare',
@@ -70,6 +71,9 @@ const PANEL_GROUPS = [
     ids: [
       'rocket-launches',
       'earthquakes',
+      'disaster-reports',
+      'volcanoes',
+      'forest-alerts',
       'local-firms',
       'fire-perimeters',
       'gnss-integrity',
@@ -80,6 +84,7 @@ const PANEL_GROUPS = [
     label: msg('Weather'),
     ids: [
       'air-quality',
+      'marine-waves',
       'wind',
       'weather-radar',
       'weather-satellite',
@@ -467,6 +472,7 @@ export class LayerPanel {
               'weather-lightning',
               'weather-cyclones',
               'air-quality',
+              'marine-waves',
             ].includes(layer.id),
         )
         .map((layer) => ({

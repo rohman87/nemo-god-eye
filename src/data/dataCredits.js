@@ -183,6 +183,48 @@ export const DATA_CREDITS = [
       '(<a href="https://sipongi.menlhk.go.id/" target="_blank" rel="noopener">sipongi.menlhk.go.id</a>)',
   },
   {
+    key: 'bmkg',
+    html:
+      'Earthquakes (Indonesia): Badan Meteorologi, Klimatologi, dan Geofisika (BMKG) — ' +
+      '<a href="https://data.bmkg.go.id/" target="_blank" rel="noopener">data.bmkg.go.id</a>',
+  },
+  {
+    key: 'open-meteo-marine',
+    html:
+      'Strait waves: ' +
+      '<a href="https://open-meteo.com/en/docs/marine-weather-api" target="_blank" rel="noopener">Marine data by Open-Meteo.com</a> ' +
+      '(CC BY 4.0); wave categories follow BMKG',
+  },
+  {
+    key: 'petabencana',
+    html:
+      'Disaster reports: crowd-sourced reports from ' +
+      '<a href="https://petabencana.id/" target="_blank" rel="noopener">PetaBencana.id</a> ' +
+      '(see petabencana.id terms)',
+  },
+  {
+    key: 'pvmbg-magma',
+    html:
+      'Volcano alert levels and VONA notices: PVMBG / ' +
+      '<a href="https://magma.esdm.go.id/" target="_blank" rel="noopener">MAGMA Indonesia</a>; ' +
+      'volcano positions: Smithsonian Institution, Global Volcanism Program, Volcanoes of the World',
+  },
+  {
+    key: 'gfw-forest-alerts',
+    html:
+      'Forest loss alerts and peatland: ' +
+      '<a href="https://www.globalforestwatch.org/" target="_blank" rel="noopener">Global Forest Watch</a> ' +
+      'integrated deforestation alerts (CC BY 4.0)',
+  },
+  {
+    key: 'gfw-fishing',
+    html:
+      'Fishing activity: ' +
+      '<a href="https://globalfishingwatch.org/" target="_blank" rel="noopener">Global Fishing Watch</a> ' +
+      '(non-commercial use); EEZ boundaries: Marine Regions, ' +
+      '<a href="https://www.marineregions.org/" target="_blank" rel="noopener">Flanders Marine Institute</a> (CC BY 4.0)',
+  },
+  {
     key: 'overture-military-names',
     html: 'Military area names: <a href="https://overturemaps.org" target="_blank" rel="noopener">Overture Maps Foundation</a> (ODbL)',
   },

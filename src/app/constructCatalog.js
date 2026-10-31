@@ -25,6 +25,11 @@ import { createApplicationAwareness } from './layers/militaryAwareness.js';
 import { createApplicationFirms } from './layers/firms.js';
 import { createApplicationEarthquakes } from './layers/earthquakes.js';
 import { createApplicationAirQuality } from './layers/airQuality.js';
+import { createApplicationMarineWaves } from './layers/marineWaves.js';
+import { createApplicationDisasterReports } from './layers/disasterReports.js';
+import { createApplicationVolcanoes } from './layers/volcanoes.js';
+import { createApplicationForestAlerts } from './layers/forestAlerts.js';
+import { createApplicationFishingActivity } from './layers/fishingActivity.js';
 import { createApplicationFirePerimeters } from './layers/perimeters.js';
 import { createApplicationGnssIntegrity } from './layers/gnss.js';
 import { createApplicationGhostMaps } from './layers/ghostMaps.js';
@@ -121,6 +126,15 @@ export function createApplicationCatalog({
         }),
         createApplicationEarthquakes({ source: sources.earthquakes }),
         createApplicationAirQuality({ source: sources['air-quality'] }),
+        createApplicationMarineWaves({ source: sources['marine-waves'] }),
+        createApplicationDisasterReports({
+          source: sources['disaster-reports'],
+        }),
+        createApplicationVolcanoes({ source: sources.volcanoes }),
+        createApplicationForestAlerts(),
+        createApplicationFishingActivity({
+          source: sources['fishing-activity'],
+        }),
         createApplicationFirePerimeters({
           source: sources['fire-perimeters'],
         }),

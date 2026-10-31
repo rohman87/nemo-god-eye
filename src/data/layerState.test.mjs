@@ -202,8 +202,8 @@ function encode(state) {
 
 test('production registry is exact, canonical, and rejects incomplete contracts', async () => {
   assert.equal(validateLayerStateRegistry(), true);
-  assert.equal(REGISTERED_LAYER_IDS.length, 32);
-  assert.equal(new Set(REGISTERED_LAYER_IDS).size, 32);
+  assert.equal(REGISTERED_LAYER_IDS.length, 37);
+  assert.equal(new Set(REGISTERED_LAYER_IDS).size, 37);
   assert.ok(REGISTERED_LAYER_IDS.includes('transit'));
   assert.deepEqual(REGISTERED_LAYER_IDS, [...REGISTERED_LAYER_IDS].sort());
   assert.deepEqual(LEGACY_LAYER_STATE_TOKENS, {
@@ -242,17 +242,32 @@ test('production registry is exact, canonical, and rejects incomplete contracts'
   for (const [id, token] of Object.entries(LEGACY_LAYER_STATE_TOKENS)) {
     assert.equal(LAYER_STATE_TOKEN_RESERVATIONS[id], token);
   }
-  assert.equal(nextLayerStateToken(), '6');
+  assert.equal(nextLayerStateToken(), '01');
   assert.equal(
     nextLayerStateToken({
       ...LAYER_STATE_TOKEN_RESERVATIONS,
-      alpha: '6',
-      bravo: '7',
+      alpha: '01',
+      bravo: '02',
     }),
-    '8',
+    '03',
   );
+  // The digit crossover fixtures need digits 6-9 and the first pair free, so
+  // they start from the ledger as it stood before the Indonesian layers.
+  const earlierReservations = Object.fromEntries(
+    Object.entries(LAYER_STATE_TOKEN_RESERVATIONS).filter(
+      ([id]) =>
+        ![
+          'marine-waves',
+          'disaster-reports',
+          'volcanoes',
+          'forest-alerts',
+          'fishing-activity',
+        ].includes(id),
+    ),
+  );
+  assert.equal(nextLayerStateToken(earlierReservations), '6');
   const digitsExhausted = {
-    ...LAYER_STATE_TOKEN_RESERVATIONS,
+    ...earlierReservations,
     ...Object.fromEntries(
       [...'6789'].map((digit) => [`prior-${digit}`, digit]),
     ),
@@ -307,8 +322,8 @@ test('production registry is exact, canonical, and rejects incomplete contracts'
   assert.equal(
     validateLayerStateAllocations(LAYER_STATE_TOKEN_RESERVATIONS, {
       ...LAYER_STATE_TOKEN_RESERVATIONS,
-      future: '6',
-      next: '7',
+      future: '01',
+      next: '02',
     }),
     true,
   );
@@ -316,9 +331,9 @@ test('production registry is exact, canonical, and rejects incomplete contracts'
     () =>
       validateLayerStateAllocations(LAYER_STATE_TOKEN_RESERVATIONS, {
         ...LAYER_STATE_TOKEN_RESERVATIONS,
-        future: '00',
+        future: '02',
       }),
-    /next free token 6/,
+    /next free token 01/,
   );
   const beforeLastDigit = { ...digitsExhausted };
   delete beforeLastDigit['prior-9'];
@@ -341,10 +356,10 @@ test('production registry is exact, canonical, and rejects incomplete contracts'
   assert.throws(
     () =>
       validateLayerStateAllocations(
-        { ...LAYER_STATE_TOKEN_RESERVATIONS, merged: '6' },
-        { ...LAYER_STATE_TOKEN_RESERVATIONS, merged: '6', competing: '6' },
+        { ...LAYER_STATE_TOKEN_RESERVATIONS, merged: '01' },
+        { ...LAYER_STATE_TOKEN_RESERVATIONS, merged: '01', competing: '01' },
       ),
-    /next free token 7/,
+    /next free token 02/,
   );
   assert.throws(
     () => validateLayerStateAllocations({ future: '00' }, { future: '01' }),
@@ -500,7 +515,7 @@ test('unknown enabled-layer tokens reject the payload instead of becoming an emp
 });
 
 test('malformed enabled-layer lists reject the entire payload', () => {
-  for (const value of ['.c', 'c.', 'c..e', 'c.c', '00', 'c.00']) {
+  for (const value of ['.c', 'c.', 'c..e', 'c.c', '01', 'c.01']) {
     assert.equal(
       decodeLayerStateParams(new URLSearchParams(`v=2&l=${value}`)),
       null,

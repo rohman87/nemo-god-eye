@@ -1074,10 +1074,11 @@ test('the voice TOOL SCHEMA matches the pinned contract — the mission mapping 
   // Panel adds timeout and named voice/provider targets; consolidated guidance
   // preserves the mission mapping and globe-rotation arguments.
   // S2 GhostMaps extends the generated layer enums; both feature contracts remain.
-  assert.equal(block.length, 31239, 'serialized tool schema length drifted');
+  // Indonesian layers (marine waves, disaster reports, volcanoes, forest alerts, fishing activity) and BMKG earthquake fields extend the manifest.
+  assert.equal(block.length, 32027, 'serialized tool schema length drifted');
   assert.equal(
     crypto.createHash('sha256').update(block).digest('hex'),
-    'b10c0a004098a10427a6323c3cb9faf0e6df90424048ab6d2d16a046e2d13795',
+    '6f10013199e7e5624591fe3ebc3978723e4beea66f688c89880482179d44188f',
     'the first-run missions must ride EXISTING tools: no schema edit, no cache bust',
   );
   const instructions = fs.readFileSync(

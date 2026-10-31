@@ -41,6 +41,8 @@ test('the complete Realtime tool payload pins the manifest-generated layer relea
     // requested radius and center authority in descriptions only.
     // Street Level and GNSS extend the manifest; tracked and analyst aircraft describe broadcasts.
     // Air quality (ECCC AQHI, KLHK ISPU) extends the manifest.
+    // Strait waves, disaster reports, volcanoes, forest alerts and fishing activity
+    // extend the manifest; earthquakes gain BMKG analyst fields.
     // Globe rotation adds one motion; visual keyhole fit and explicit
     // reset guidance/defaults update only move_camera and mode descriptions.
     // S2 GhostMaps extends the generated layer enums.
@@ -48,7 +50,7 @@ test('the complete Realtime tool payload pins the manifest-generated layer relea
     // is consolidated without changing either feature's arguments.
     // Snow leaves the set_visual_style enum.
     // The Operator HUD layout leaves set_hud's layout enum.
-    '6c1b97daa34d92a302eb06da9f72bea2693876032be76f86635c814ba1ab20db',
+    'f351a20a2b7a66daff92f350e8d5e40f65aab299ea2ff987c9a31a89f0036858',
   );
 });
 

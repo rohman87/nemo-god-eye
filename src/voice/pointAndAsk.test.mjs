@@ -349,8 +349,10 @@ test('deixis prompt lint: one short rule, and every sentinel it names exists in 
   // it to 51,646. A new tool or rule has to fit under this ceiling.
   const size = instructions.length + JSON.stringify(GEV_REALTIME_TOOLS).length;
   // Fork: +~110 chars for Indonesian city ids (jakarta, bandung, depok, bogor)
-  // in the three locationId enums, so the ceiling is 52,200.
-  assert.ok(size <= 52200, `prompt size ${size}`);
+  // in the three locationId enums, so the ceiling is 52,200. The five
+  // Indonesian layers (layer enums, alias hint, analyst query fields) and the
+  // BMKG earthquake fields add ~710 chars, so the ceiling is 53,000.
+  assert.ok(size <= 53000, `prompt size ${size}`);
 });
 
 

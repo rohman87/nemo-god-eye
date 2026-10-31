@@ -605,6 +605,11 @@ export const LAYER_STATE_REGISTRY = Object.freeze([
     optionOwner: 'cctv',
   }),
   Object.freeze({ id: 'directions', token: 'n', disposition: 'enabled-only' }),
+  Object.freeze({
+    id: 'disaster-reports',
+    token: '7',
+    disposition: 'enabled-only',
+  }),
   Object.freeze({ id: 'earthquakes', token: 'e', disposition: 'enabled-only' }),
   Object.freeze({
     id: 'fire-perimeters',
@@ -612,10 +617,20 @@ export const LAYER_STATE_REGISTRY = Object.freeze([
     disposition: 'enabled-only',
   }),
   Object.freeze({
+    id: 'fishing-activity',
+    token: '00',
+    disposition: 'enabled-only',
+  }),
+  Object.freeze({
     id: 'flights',
     token: 'f',
     disposition: 'enabled+options',
     optionOwner: 'flights',
+  }),
+  Object.freeze({
+    id: 'forest-alerts',
+    token: '9',
+    disposition: 'enabled-only',
   }),
   Object.freeze({
     id: 'gnss-integrity',
@@ -629,6 +644,11 @@ export const LAYER_STATE_REGISTRY = Object.freeze([
     disposition: 'enabled-only',
   }),
   Object.freeze({ id: 'local-firms', token: 'w', disposition: 'enabled-only' }),
+  Object.freeze({
+    id: 'marine-waves',
+    token: '6',
+    disposition: 'enabled-only',
+  }),
   Object.freeze({
     id: 'military',
     token: 'm',
@@ -691,6 +711,11 @@ export const LAYER_STATE_REGISTRY = Object.freeze([
     optionOwner: 'traffic',
   }),
   Object.freeze({ id: 'transit', token: 'j', disposition: 'enabled-only' }),
+  Object.freeze({
+    id: 'volcanoes',
+    token: '8',
+    disposition: 'enabled-only',
+  }),
   Object.freeze({
     id: 'weather-cyclones',
     token: 'y',

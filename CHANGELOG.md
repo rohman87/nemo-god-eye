@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+- Added a keyless Strait waves layer to the Weather group: Open-Meteo Marine wave height at 10 Indonesian ferry straits, including Selat Sunda, with BMKG wave categories and vessel-limit chips for fishing boat, ferry, barge and large ship. Refreshes every 30 minutes.
+
+- Added a keyless Disaster reports layer to the Events group: crowd-sourced PetaBencana.id reports of flood, fire, haze, wind, earthquake and volcano, with 24 h, 3 d and 7 d chips. The reports are unverified. Refreshes every 10 minutes.
+
+- Added a keyless Volcanoes layer to the Events group: PVMBG MAGMA alert levels (Normal, Waspada, Siaga, Awas) and VONA aviation notices, read through the same-origin proxy `/api/volcanoes/indonesia`, which runs on the dev, preview and standalone servers only. Positions come from the Smithsonian GVP. Refreshes every 30 minutes.
+
+- Added a keyless Forest loss alerts layer to the Events group: Global Forest Watch integrated deforestation alerts and peatland tiles over Indonesia, with 30 and 90 day window chips.
+
+- Added a Fishing activity layer to the Movement group: Global Fishing Watch fishing events and AIS gaps in Indonesian waters, read through the same-origin proxy `/api/fishing/indonesia`. It needs a free `GFW_API_TOKEN` in `.env` and a server restart. Without it, the layer shows only the bundled Indonesian EEZ boundary (Marine Regions, CC BY 4.0) and says the token is missing.
+
+- Changed Earthquakes to merge BMKG (data.bmkg.go.id: latest automatic report, recent events and felt reports) with USGS, adding tsunami-potential rings, felt-report dots, a legend and a list of the newest Indonesian events. If one provider fails, the other still supplies the layer.
+
 ## [0.3.0] — 2026-10-27 — Street Level, On Your Phone, in Your Language
 
 - Show a Street Level view facing 359.5° or more as 0°. The viewer caption

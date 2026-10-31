@@ -26,6 +26,8 @@ import { keySetupEndpoint } from '../standalone/key-setup.js';
 import { weatherProxy } from './weather.js';
 import { firePerimetersProxy } from './firePerimeters.js';
 import { airQualityIndonesiaProxy } from './airQualityIndonesia.js';
+import { volcanoesIndonesiaProxy } from './volcanoesIndonesia.js';
+import { fishingIndonesiaProxy } from './fishingIndonesia.js';
 import { gnssIntegrityProxy } from './gnssIntegrity.js';
 import { ghostMapsProxy } from './ghostMaps.js';
 import { cycloneProxy } from './cyclones.js';
@@ -66,6 +68,8 @@ function localProviderPlugins({ realtime, gemini } = {}) {
     mapillaryProxy(),
     firePerimetersProxy(),
     airQualityIndonesiaProxy(),
+    volcanoesIndonesiaProxy(),
+    fishingIndonesiaProxy(),
     gnssIntegrityProxy(),
     ghostMapsProxy(),
     keySetupEndpoint(),
